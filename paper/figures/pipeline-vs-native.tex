@@ -1,0 +1,66 @@
+% Figure 1: pipeline stack versus inference-native database.
+% Both panels share one grid: rows at fixed y, boxes centred on x = 0.
+\begin{tikzpicture}[
+    font=\footnotesize,
+    box/.style={draw, rounded corners=2pt, align=center, inner sep=2pt,
+                minimum height=6mm, text depth=.25ex},
+    wide/.style={box, minimum width=50mm},
+    mid/.style={box, minimum width=32mm},
+    small/.style={box, minimum width=15mm},
+    chip/.style={box, text width=8.6mm, inner xsep=0.5pt},
+    accent/.style={very thick, fill=black!6},
+    arrow/.style={-{Latex[length=1.6mm]}, semithick},
+    note/.style={color=black!60},
+    panel/.style={draw=black!35, rounded corners=3pt, inner sep=4pt},
+    title/.style={font=\footnotesize\bfseries, anchor=south west, text depth=.25ex, text height=1.6ex},
+  ]
+  \def\rA{0}      % first box
+  \def\rB{-1.25}  % producers / jobs
+  \def\rC{-2.55}  % indexes
+  \def\rD{-3.65}  % result
+  \def\rE{-4.35}  % note
+
+  % ---------------- Left: pipeline stack ----------------
+  \begin{scope}
+    \node[mid] (src) at (0,\rA) {Source database};
+    \node[wide, minimum height=11mm] (jobs) at (0,\rB)
+      {\textbf{Orchestrated pipeline jobs}\\OCR, transcribe, chunk, embed, extract\\{\color{black!60}run outside the database}};
+    \node[small] (s1) at (-1.75,\rC) {Search};
+    \node[small] (s2) at (0,\rC) {Vectors};
+    \node[small] (s3) at (1.75,\rC) {Graph};
+    \node[wide] (app) at (0,\rD) {App code joins by ID};
+    \node[note] (lnote) at (0,\rE) {A copy per system, each drifting on its own};
+    \draw[arrow] (src) -- (jobs);
+    \foreach \s in {s1,s2,s3} {
+      \draw[arrow] (jobs.south -| \s) -- (\s);
+      \draw[arrow] (\s) -- (app.north -| \s);
+    }
+    \begin{scope}[on background layer]
+      \node[panel, fit=(src)(jobs)(app)(lnote)] (lp) {};
+    \end{scope}
+    \node[title] at (lp.north west) {Pipeline stack};
+  \end{scope}
+
+  % ---------------- Right: inference-native database ----------------
+  \begin{scope}[xshift=62mm]
+    \node[mid] (w) at (0,\rA) {Write a document};
+    \node[wide, accent, minimum height=11mm] (prod) at (0,\rB)
+      {\textbf{Producers owned by the database}\\OCR, transcribe, chunk, embed,\\extract, resolve, redact};
+    \node[chip] (c1) at (-2.04,\rC) {BM25};
+    \node[chip] (c2) at (-1.02,\rC) {Dense};
+    \node[chip] (c3) at (0,\rC)     {Sparse};
+    \node[chip] (c4) at (1.02,\rC)  {Graph};
+    \node[chip] (c5) at (2.04,\rC)  {Rows};
+    \node[wide] (house) at (0,\rD) {\textbf{One document identity, one query}};
+    \node[note] (rnote) at (0,\rE) {Replayed and fenced like any index};
+    \draw[arrow] (w) -- (prod);
+    \foreach \c in {c1,c2,c3,c4,c5} {
+      \draw[arrow] (prod.south -| \c) -- (\c);
+      \draw[arrow] (\c) -- (house.north -| \c);
+    }
+    \begin{scope}[on background layer]
+      \node[panel, fill=black!3, fit=(w)(prod)(house)(rnote)] (rp) {};
+    \end{scope}
+    \node[title] at (rp.north west) {Inference-native database};
+  \end{scope}
+\end{tikzpicture}

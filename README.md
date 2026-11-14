@@ -4,6 +4,24 @@ Open-source protocols and reproducible evaluation tools for Antfly. Code is
 Apache-2.0 licensed. This repository contains the evaluation implementation;
 it does not yet publish a completed paper evaluation or comparative results.
 
+## Paper
+
+[`paper/`](paper) holds the LaTeX source of "Antfly: An Inference-Native
+Polymorphic Database". Build it with `make -C paper pdf`.
+
+## Evaluations
+
+| Experiment | Protocol | Status |
+| --- | --- | --- |
+| Authorization under selective filters | [retrieval](evaluations/retrieval/protocol.md) | Frozen; implemented |
+| Revision fencing | [revision-fencing](evaluations/revision-fencing/protocol.md) | Draft |
+| Crash and update correctness | [crash-correctness](evaluations/crash-correctness/protocol.md) | Draft |
+| Privacy coverage | [privacy-coverage](evaluations/privacy-coverage/protocol.md) | Draft |
+| Head-to-head on representative applications | [head-to-head](evaluations/head-to-head/protocol.md) | Draft |
+
+Draft protocols state the claim, invariants, method and metrics. They must be
+frozen with a subject commit and pinned inputs before any measurement.
+
 ## Retrieval evaluation
 
 The primary subject is **Antfly v0.3.0 at its server default search effort
