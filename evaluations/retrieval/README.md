@@ -24,7 +24,15 @@ For a wiring dataset, repeat preparation with `--size 10000` and a new
 `--out /data/prepared/10k`. Never overwrite a prepared manifest or result.
 Preparation computes and records exact ground truth separately from engines.
 
+The configured v5 attempt explicitly raises the open-file limit to work around
+Antfly release issue [#1670](https://github.com/antflydb/antfly/issues/1670).
+It keeps default search effort 0.5, applies the limit to all owned containers,
+and is separate from the failed inherited-limit v4 attempts. To reproduce v4,
+unset both variables instead; its original protocol and outcomes remain intact.
+
 ```sh
+export PAPER_PROTOCOL=paper-default-v030-v5
+export PAPER_CONTAINER_NOFILE=65536:524288
 docker run --rm --network none antfly-paper-eval:0.3.0 \
   -m unittest discover -s /app/scripts -p test_retrieval.py
 python3 evaluations/retrieval/scripts/run_retrieval.py \
