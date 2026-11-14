@@ -14,6 +14,7 @@ Polymorphic Database". Build it with `make -C paper pdf`.
 | Experiment | Protocol | Status |
 | --- | --- | --- |
 | Authorization under selective filters | [retrieval](evaluations/retrieval/protocol.md) | Frozen; implemented |
+| Synthetic lifecycle controls | [lifecycle](evaluations/lifecycle/README.md) | Implemented subset; see coverage |
 | Revision fencing | [revision-fencing](evaluations/revision-fencing/protocol.md) | Draft |
 | Crash and update correctness | [crash-correctness](evaluations/crash-correctness/protocol.md) | Draft |
 | Privacy coverage | [privacy-coverage](evaluations/privacy-coverage/protocol.md) | Draft |
@@ -45,7 +46,7 @@ verified; data, models, credentials, logs and generated results stay out of Git.
 Filtered retrieval alone does not establish the inference-native thesis.
 Lifecycle/revision recovery, correction/deletion, complete application effort,
 speaker-boundary and HBC/LEANN experiments require separate evidence. Closest
-ingest-inference prior art such as Vespa or Elasticsearch must be considered
+ingest-inference prior art including Vespa and OpenSearch must be considered
 alongside pipeline and embedded-SDK baselines for those claims.
 
 The standalone runner owns its temporary Docker resources. External campaign

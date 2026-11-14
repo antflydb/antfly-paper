@@ -114,6 +114,7 @@ class Owned:
         cpus=4,
         memory="12g",
         entrypoint=None,
+        ulimits=(),
     ):
         name = self.prefix + "-" + role
         command = [
@@ -142,6 +143,8 @@ class Owned:
             command += ["--mount", mount]
         for port in ports:
             command += ["-p", f"127.0.0.1::{port}"]
+        for limit in ulimits:
+            command += ["--ulimit", limit]
         if entrypoint:
             command += ["--entrypoint", entrypoint]
         command += [image, *args]
@@ -152,7 +155,7 @@ class Owned:
     def port(self, name, port):
         return int(docker(["port", name, f"{port}/tcp"]).strip().rsplit(":", 1)[1])
 
-    def postgres(self, image=POSTGRES_IMAGE):
+    def postgres(self, image=POSTGRES_IMAGE, *, ulimits=()):
         volume = self.volume("postgres-data")
         name = self.container(
             "postgres",
@@ -169,6 +172,7 @@ class Owned:
             env=["POSTGRES_PASSWORD"],
             mounts=[f"type=volume,src={volume},dst=/var/lib/postgresql"],
             ports=[5432],
+            ulimits=ulimits,
         )
 
         def ready():
@@ -206,7 +210,18 @@ class Owned:
             input=sql,
         )
 
-    def client(self, role, args, *, env=(), mounts=(), ports=(), cpus=1, memory="1g"):
+    def client(
+        self,
+        role,
+        args,
+        *,
+        env=(),
+        mounts=(),
+        ports=(),
+        cpus=1,
+        memory="1g",
+        ulimits=(),
+    ):
         return self.container(
             role,
             get_client_image(),
@@ -219,6 +234,7 @@ class Owned:
             ports=ports,
             cpus=cpus,
             memory=memory,
+            ulimits=ulimits,
         )
 
     def wait_exit(self, name, timeout=120):

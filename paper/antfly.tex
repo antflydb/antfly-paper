@@ -7,6 +7,7 @@
 
 \newcolumntype{L}{>{\raggedright\arraybackslash}X}
 \settopmatter{printfolios=true}
+\setlength{\emergencystretch}{2em}
 
 \begin{document}
 
@@ -143,12 +144,14 @@ and revision fencing built in.
   &\mathit{producer\_config},\ \mathit{model\_revision})
 \end{split}
 \end{equation*}
-An artifact may be served only when all four components match the current
-published generation. A change to any component invalidates it and
-everything derived from it. Unchanged inputs are not recomputed. A new model
-or configuration starts a new generation, so an index never serves two
-embedding spaces at once, and work from a superseded generation is rejected
-rather than published. The revision is the most specific identity the model
+An artifact is valid for its captured source version, producer configuration
+and model revision. A source change supersedes unfinished work; asynchronous
+writes may leave the previous published representation visible until its
+replacement is ready. Writes that wait for derived state establish a
+read-your-writes barrier. Unchanged inputs are not recomputed. A different
+embedding space uses a separately materialized index or field. The client
+selects that generation and its matching query encoder after readiness; work
+from a superseded generation is rejected rather than published. The revision is the most specific identity the model
 exposes, and an explicitly pinned revision fails closed when a provider
 cannot confirm it. When a producer reads beyond its source document, the
 identity also carries a context fingerprint: the other documents, query
@@ -162,9 +165,9 @@ is restored from committed data.
     model revision.
   \item Non-deterministic producers, such as LLM decisions, are recorded once
     with their inputs and re-applied on replay, never recomputed.
-  \item Persistent failures become visible repair work, not silent gaps. In a
-    pipeline, a document whose embedding call timed out simply never appears
-    in vector search, and nothing reports it.
+  \item Persistent failures become visible repair work, not silent gaps. An
+    external pipeline must likewise track failures and expose missing work;
+    our baseline implements that contract rather than omitting it.
   \item Replay reads the current source version. Work queued for a source
     that has since changed or been deleted is superseded, never published.
   \item A crash between a model response and its commit repeats the model
@@ -215,8 +218,8 @@ pipeline alike.
     Event & Required invariant & Antfly mechanism \\
     \midrule
     The call is written and enrichment starts & No index reports the call complete until every stage it depends on has published & Readiness reported per index: queryable versus complete \\
-    A privacy policy covers the transcript & No chunk, vector, text index or external model call receives the phone number & Redaction installed upstream of every derived copy \\
-    An embedding upgrade from model A to model B begins & No query mixes A and B vectors; the call stays searchable under A until B is complete & Revision-bound generations with an atomic switch \\
+    A privacy policy covers the transcript & No protected downstream consumer receives the phone number after policy activation; the detector and original source are inventoried separately & Redaction installed upstream of every derived copy \\
+    An embedding upgrade from model A to model B begins & No query mixes A and B vectors; the call stays searchable under A until B is complete & Revision-bound replacement indexes and client-coordinated query-encoder cutover \\
     The customer's account is restricted mid-upgrade & No query in either generation returns the call's chunks, entities or graph neighbors to a user who lost access & Row filters inside every retrieval operator, graph hop and agent tool call \\
     The transcript is corrected while old work is in flight & Superseded work never publishes; derived state converges to the corrected source & Source-version guards and replay from the current version \\
     A worker crashes after the model responds but before commit & Each artifact lands exactly once or is visibly pending & Idempotent publication and visible repair work \\
@@ -286,7 +289,7 @@ them. Further capabilities are listed in Appendix~\ref{app:capabilities}.
     Capability & What owning derived state makes possible \\
     \midrule
     Authorization inside retrieval & User and agent permissions apply inside vector search, text search, graph hops and agent tool calls. Filters take part in vector traversal instead of trimming results afterward, and model tool arguments cannot weaken them. \\
-    Privacy across derived copies & Redaction is a rewrite of the producer graph, upstream of every chunk, embedding and text index, so no derived copy escapes it. \\
+    Privacy across derived copies & Redaction is a rewrite of the producer graph, upstream of protected chunk, embedding and text consumers. Originals remain in storage; protected backfill fails closed and graph indexes are refused today. \\
     Entity resolution & Extraction, matching and merging are replayed stages with recorded decisions and a canonical, editable entity table. \\
     Storage traded for inference & Vector indexes keep a fraction of each vector and recompute the rest on demand~\cite{wang2025leann}. This is safe only when source, model and revision are guaranteed together. \\
     \bottomrule
@@ -297,12 +300,17 @@ them. Further capabilities are listed in Appendix~\ref{app:capabilities}.
 \section{Related work}
 \label{sec:related}
 
-Several systems now manage some inference-derived state.
+Several systems now manage some inference-derived state. OpenSearch semantic
+fields generate embeddings through ML Commons models, retain model IDs in
+field mappings, and can reuse unchanged embeddings~\cite{opensearch-semantic,opensearch-connectors}.
 Elasticsearch chunks and embeds text at ingest~\cite{elastic-semantic-text},
 and its preview \texttt{semantic} field also embeds images, audio, video and
 PDFs~\cite{elastic-semantic}. Vespa runs models at feed time for embedding,
 entity extraction, categorization, anonymization and
-chunking~\cite{vespa-enrichment}. SurrealDB's Agent Memory, a closed-source
+chunking~\cite{vespa-enrichment}. Its reindexing service refeeds stored
+documents through the indexing chain, reports progress, resumes failures and
+supports a new-field rebuild followed by a query cutover~\cite{vespa-reindexing}.
+These are lifecycle mechanisms, not an external embedding-only pipeline. SurrealDB's Agent Memory, a closed-source
 layer on its multi-model engine, extracts facts from documents with
 provenance, temporal history and scoped grants~\cite{surrealdb-agent-memory}.
 
@@ -318,15 +326,15 @@ therefore compare by property rather than by product category
   \small
   \begin{tabularx}{\textwidth}{@{}p{0.17\textwidth}LLLLL@{}}
     \toprule
-    Property & Antfly & Elasticsearch & Vespa & SurrealDB & Postgres + extensions \\
+    Property & Antfly & OpenSearch & Vespa & SurrealDB & Postgres + extensions \\
     \midrule
     Inference managed at write time & Yes & Yes (embeddings) & Yes (embeddings and LLM enrichment) & In the Agent Memory layer & External worker \\
-    Derived state beyond embeddings & OCR, transcription, extraction, resolution, redaction & Ingest processors for text extraction and entities & Extraction, anonymization, chunking & Fact extraction from documents & No \\
-    Durable replay of derived state & Yes & Not documented & Not documented & Not documented & Not documented \\
-    Model-revision binding & Enforced & Checks dimensions and similarity; same model advised, not enforced & Not documented & Not documented & Not documented \\
-    Readiness semantics & Yes & Not documented & Not documented & Not documented & Not documented \\
+    Derived state beyond embeddings & OCR, transcription, extraction, resolution, redaction & Native inference and chunking processors & Extraction, anonymization, chunking & Fact extraction from documents & Custom producers and artifact tables \\
+    Derived-state recovery & Recorded outputs and replay cursors & Ingest pipelines and reindex APIs & Stored-data refeed; resumable reindexing & Property-specific contract & Durable workflow and versioned artifacts in our baseline \\
+    Model-revision binding & Pinned producer identity; fail closed & Model ID in semantic mapping; new index for a new space & Model configuration; new field and query cutover & Property-specific contract & Explicit artifact identities and publication guards \\
+    Readiness signals & Queryable and complete per index & ML deployment, refresh and reindex task state & Configuration convergence and reindex progress & Property-specific contract & Dependency completion and serving generation \\
     Shared identity across text, vector, graph, relational & Yes & Text and vector & Text and vector & Yes & Yes, across extensions \\
-    Authorization inside retrieval & Yes & Document-level security in paid tiers & Application-level & Yes & Row-level security; applied after the vector index scan~\cite{pgvector,postgres-rls} \\
+    Authorization inside retrieval & Yes & Security-plugin document policies~\cite{opensearch-dls} & Application-level & Yes & Row-level security; applied after the vector index scan~\cite{pgvector,postgres-rls} \\
     \bottomrule
   \end{tabularx}
 \end{table*}
@@ -382,15 +390,36 @@ as an embedded single file, a replicated server or a sharded cluster.
 \section{Evaluation}
 \label{sec:eval}
 
-\paragraph{Baselines.} Each experiment has a frozen, reproducible protocol in
-the artifact repository~\cite{antfly-paper-repo}. The authorization
-experiment compares PostgreSQL with pgvector (shared and partial HNSW indexes
-under row-level security), ParadeDB native vectors, and LanceDB embedded with
-prefiltering. The head-to-head compares against an external pipeline built to
-succeed: Postgres with pgvector and row-level security, plus a durable
-workflow engine such as Dagster or Temporal with lineage, versioned artifacts
-and publication conditioned on the source version. Databricks serves as a
-platform comparison.
+\paragraph{Baselines.} Protocols and implementation status live in the
+artifact repository~\cite{antfly-paper-repo}; draft protocols are not completed
+measurements. The retrieval experiment compares PostgreSQL with pgvector
+(shared and partial HNSW indexes under RLS), ParadeDB native vectors, and
+LanceDB Embedded with native prefiltering. PostgreSQL variants are
+configurations of one family. LanceDB uses its supported embedding functions
+and updates, not a mandatory external embedding worker; its trusted
+application supplies authorization predicates, whereas Antfly and PostgreSQL
+also enforce server-owned policies. A correct application is a valid baseline.
+
+Lifecycle and application experiments compare against a pipeline built to
+succeed: PostgreSQL with versioned artifacts, durable orchestration and
+source-conditioned publication. We also include an ingest-inference reference,
+OpenSearch with semantic fields and ML Commons, using the pinned release's supported
+APIs and license. Vespa is an executed lifecycle reference, using native feed-time
+embedding, stored-data reindexing, progress signals and new-field cutovers. Databricks is a
+platform reference rather than an unmeasured performance row. No missing
+measurement is treated as a missing capability.
+
+\paragraph{Method.} The first application is permissioned document search;
+call/meeting and graph applications extend coverage after it meets the same
+acceptance checks on both architectures. Count required services, deployment
+configuration and custom lifecycle code separately; the LanceDB measurement
+facade is instrumentation. Compare asynchronous source acknowledgements with
+asynchronous paths, and derived-ready acknowledgements with synchronous paths.
+Use identical models and total compute budgets to isolate ownership from
+placement. Synthetic providers expose causal correctness boundaries; real
+pinned models measure useful quality and performance. Timing comparisons
+require matched quality and completed work, with errors and availability
+reported alongside latency.
 
 Table~\ref{tab:experiments} lists five primary experiments, in priority
 order, each with the result the design predicts.
@@ -403,19 +432,21 @@ order, each with the result the design predicts.
     \toprule
     Experiment & Method & Predicted result \\
     \midrule
-    Revision fencing & Swap the embedding model A $\rightarrow$ B $\rightarrow$ A during ingestion while querying continuously. & Zero queries observe a mixed vector space. \\
-    Authorization under selective filters & On a public 1M-vector, 768-dimension corpus, vary permission eligibility from 50\% to 0.1\% of rows, random and correlated. Compare p50 and p95 latency at matched quality (recall@10 of at least 0.95 with ten authorized results), with Antfly at its default search effort and a top-10 post-filter ablation. & Antfly meets matched quality at every eligibility level without tuning; the post-filter ablation starves as filters tighten. \\
-    Crash and update correctness & Crash after each producer stage; update and delete sources while enrichment is in flight. & No artifact from an obsolete generation becomes queryable. \\
-    Privacy coverage & Plant personal data and inventory every stored artifact and external model request. & No protected derived representation contains an original value. \\
+    Revision fencing & Build separate A0, B1 and A2 generations during writes; switch generation and query encoder together after readiness. Hold old responses, crash during migration, and separately test alias changes and wrong revision acknowledgements. & No query mixes incompatible spaces. Measure freshness, availability, cutover time and coordination work, including failures. \\
+    Authorization under selective filters & On a public 1M-vector, 768-dimension corpus, vary eligibility from 50\% to 0.1\%, random and correlated. Measure recall, completeness, errors and p50/p95; identify Antfly default settings and calibrated peer settings separately. Test policy enforcement independently of predicate correctness. & Native prefiltering and suitable iterative or exact plans can preserve top-$k$ on several systems. A global-top-10 post-filter ablation loses eligible results. Quality misses remain outcomes. \\
+    Crash and update correctness & Gate producer calls; update and delete sources while work is in flight; crash at externally observed boundaries. Separate post-commit replay from response-before-commit failpoints. Match each write mode. & Superseded work cannot overwrite current state; derived-ready reads meet their barrier; asynchronous lag, convergence, retries and repair debt are reported. \\
+    Privacy coverage & Plant personal data; inspect protected consumers and query paths during activation, backfill, updates and deletion. Inventory original stores, detector calls, logs and historical versions separately. & No protected downstream representation or model request receives an original after the policy barrier; detection errors and unavailable time are reported. \\
     Head-to-head on representative applications & Build call and meeting search with speaker turns, scanned-document search with OCR fallback and redaction, and permission-scoped agent retrieval over an extracted knowledge graph on Antfly and on the external pipeline. Drive each through the events in Table~\ref{tab:invariants}. & Both can maintain the invariants. We measure the coordination code, operating effort, recovery work and interference each needs, and report where ownership costs more, such as rebuild time and upgrade coupling. \\
     \bottomrule
   \end{tabularx}
 \end{table*}
 
-Secondary experiments measure throughput and GPU memory for a mixed workload
-of PDFs, calls and video against separate services that each load their own
-models; query latency while inference backfills; and storage and latency
-when vectors are recomputed on demand. Reference implementations, counting
+Secondary experiments measure serving-only versus serving-with-backfill under
+fixed offered load, alongside an isolated-inference control with equal total
+resources and the same models. They report query tails, errors, queue growth
+and completed backfill work. Mixed-model memory and vector recomputation
+experiments include shared-runtime baselines, actual model/source storage and
+matched recall; separate services need not duplicate models unnecessarily. Reference implementations, counting
 rules and workloads are published with the paper; generated code is excluded
 from line counts.
 

@@ -1,49 +1,62 @@
-# Head-to-head protocol (draft, not frozen)
+# Head-to-head at equivalent useful behavior
 
-Status: draft. Do not measure or report results until this protocol is frozen
-with a name, subject commit and pinned inputs, as in
-[the retrieval protocol](../retrieval/protocol.md).
+Status: draft. First build and validate one complete permissioned document
+application; calls/meetings and graph applications follow as breadth studies.
+No comparison is completed because an acceptance manifest or adapter exists.
 
-## Question
+## Architectures
 
-Both architectures can maintain the paper's invariants. What does each need
-in coordination code, operating effort, recovery work and interference to do
-so, and where does database ownership cost more?
+- Antfly managed producer graph and server-owned policies.
+- PostgreSQL with pgvector/ParadeDB where useful, actual RLS and durable
+  orchestration, versioned artifacts, dependency completion and conditional
+  publication. A custom outbox implementation is identified as such, never
+  called Temporal/Dagster. A workflow-engine variant must run the actual engine.
+- LanceDB Embedded supported synchronous embedding/merge-insert path and a
+  trusted application enforcing policy. Add workers only for actual background
+  work; the SDK measurement facade is not a required product service.
+- OpenSearch semantic fields and ML Commons connectors on a pinned supported release/license;
+  Vespa's feed-time models, reindexing and new-field cutovers are a separate
+  explicitly opted-in reference. Do not treat either as an external-vector sink.
 
-## Implementations
+## Applications and acceptance
 
-- **Antfly:** a pinned release, with producer graphs declared through its API.
-- **External pipeline, built to succeed:** PostgreSQL with pgvector and
-  row-level security, plus a durable workflow engine (Dagster or Temporal)
-  with lineage, versioned artifacts and publication conditioned on the source
-  version. Built by engineers instructed to meet every invariant, and reviewed
-  before measurement.
+1. Permissioned born-digital/scanned document search: OCR fallback, chunk
+   coordinates, redaction, semantic/full-text retrieval, source correction,
+   deletion, model migration and restart. Start with a small licensed fixture
+   with independent text, PII, ACL, citation and relevance annotations; scale
+   only after all required behavior works.
+2. Call/meeting search: timestamps/speakers, fixed/pause/speaker-boundary
+   ablations with identical models/budgets. Human diarization isolates boundary
+   effects; automatic diarization is a separate end-to-end condition.
+3. Agent graph retrieval: extracted edges, hybrid ranking and graph expansion,
+   authorization at every claimed boundary. Compare the strongest supported
+   peer same-engine joins too; do not force separate services unnecessarily.
 
-## Applications
+Use the paper's event sequence: write, protective policy, new-model build,
+permission restriction, source correction while work is held, crash/recovery.
+Measure both async source-acceptance and derived-ready paths with like contracts.
+The external implementation is designed to pass and reviewed before timing.
+Quality/behavior qualification precedes a cost or latency ranking.
 
-1. Call and meeting search with speaker turns and timestamps.
-2. Scanned and born-digital document search with OCR fallback and redaction.
-3. Permission-scoped agent retrieval over an extracted knowledge graph.
+## Counting and controls
 
-## Scenario
+Count required production services, failure domains, custom lifecycle code,
+configuration, deployment/upgrade/repair actions and observed operator time.
+Exclude generated code and common fixture/measurement code, but classify all
+code transparently. LOC is not developer effort. Count Antfly's remote model
+service/worker just as for peers. Share models/caches where the supported
+architecture permits it; do not force redundant model copies.
 
-Drive each application through the events in the paper's invariants table: a
-write with enrichment, a privacy policy, an embedding-model upgrade,
-a permission restriction mid-upgrade, a correction while work is in flight,
-and a worker crash. Check each invariant after every event.
+For composition, compare identical candidates/fusion/edges/fanout and result
+semantics, with Antfly composed versus staged-client execution and strongest
+supported peer plans. Report bytes moved, requests, p50/p95 and correctness
+under updates. For interference, open-loop arrivals and fixed offered load:
+serving alone, serving+backfill and isolated inference at equal total resources
+and identical models. Report query tails/errors, queue growth, throughput and
+completed backfill work; pausing backfill is not a free serving win.
 
-## Metrics
-
-- Invariant violations (both implementations may reach zero).
-- Coordination code, counted with published rules; generated code excluded.
-- Services operated, separately monitored failure domains, deployment steps.
-- Manual repair procedures and recovery time after each fault.
-- Query latency interference while enrichment runs.
-- Where ownership costs more: rebuild time and cost after a producer change,
-  and the coupling of pipeline changes to database releases.
-
-## Open questions before freezing
-
-- Corpora for each application, with licenses.
-- Counting rules for coordination code and configuration.
-- Review process for the external implementation.
+Pin corpora licenses/hashes, models, APIs, index definitions, sync modes and
+acceptance checks. Quantitative storage/recomputation and typed-decision claims
+need matched-quality controls including original source/model bytes or the same
+batched local classifier. Synthetic lifecycle fixtures cannot substitute for
+real-model quality or throughput. Missing results remain not-run.
