@@ -49,6 +49,7 @@ def lifecycle(engine, data, output, wiring):
                 json.dumps({"inference": {"api_url": "http://127.0.0.1:1"}})
             )
             volume = owned.volume("antfly-data")
+            data_dir = "/antflydb" if SUBJECT_TAG == "v0.3.0" else "/database"
             owned.container(
                 "antfly",
                 ANTFLY_RUNTIME,
@@ -63,7 +64,7 @@ def lifecycle(engine, data, output, wiring):
                     "--auth",
                     "true",
                     "--data-dir",
-                    "/database",
+                    data_dir,
                     "--config",
                     "/config.json",
                 ],
@@ -75,7 +76,7 @@ def lifecycle(engine, data, output, wiring):
                         else []
                     ),
                     f"type=bind,src={config},dst=/config.json,readonly",
-                    f"type=volume,src={volume},dst=/database",
+                    f"type=volume,src={volume},dst={data_dir}",
                 ],
                 entrypoint="/subject/antfly" if SUBJECT_TAG != "v0.3.0" else None,
             )
