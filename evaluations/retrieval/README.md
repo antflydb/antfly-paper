@@ -9,7 +9,7 @@ From the repository root:
 
 ```sh
 docker build --platform linux/arm64 -t antfly-paper-eval:0.3.0 evaluations/retrieval
-python3 evaluations/retrieval/scripts/fetch_subject.py
+docker pull ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294
 mkdir -p .data/cohere .data/prepared
 curl -fL https://assets.zilliz.com/benchmark/cohere_medium_1m/shuffle_train.parquet -o .data/cohere/train.parquet
 curl -fL https://assets.zilliz.com/benchmark/cohere_medium_1m/test.parquet -o .data/cohere/test.parquet
@@ -34,7 +34,9 @@ python3 evaluations/retrieval/scripts/run_retrieval.py \
 python3 evaluations/retrieval/analysis/status.py results/retrieval-01
 ```
 
-The image tag is resolved to an immutable local image ID before use and that
+Antfly v0.3.0 uses the official Linux ARM64 release image pinned by digest,
+with its shipped entrypoint and libraries. No host Antfly binary is needed.
+The dependency image tag is resolved to an immutable local image ID before use and that
 ID is recorded. `PAPER_CLIENT_IMAGE` can name another prebuilt dependency
 image with the same lockfile. `PAPER_WORKSPACE` optionally places binaries
 and working data in a separate runner workspace. `PAPER_SUBJECT_TAG` and

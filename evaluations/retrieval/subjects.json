@@ -4,6 +4,7 @@
     "platform": "Linux_arm64",
     "archive_url": "https://github.com/antflydb/antfly/releases/download/v0.3.0/antfly_0.3.0_Linux_arm64_gnu.tar.gz",
     "archive_sha256": "602c950c976453e53197ba427eae947bf5bcaaf5697a5fed8aa1b7fb99f4195e",
-    "binary_sha256": "6b39c2a425fc946779d69572831c891fb20303efe8517d1b3b79a6b4f0f8c998"
+    "binary_sha256": "6b39c2a425fc946779d69572831c891fb20303efe8517d1b3b79a6b4f0f8c998",
+    "container_image": "ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294"
   }
 }

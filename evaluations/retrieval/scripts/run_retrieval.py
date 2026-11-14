@@ -41,7 +41,7 @@ def lifecycle(engine, data, output, wiring):
             else:
                 owned.postgres(image=PGVECTOR_IMAGE)
         elif engine == "antfly":
-            if sha(ANTFLY) != ANTFLY_SHA:
+            if SUBJECT_TAG != "v0.3.0" and sha(ANTFLY) != ANTFLY_SHA:
                 raise ValueError("Antfly binary checksum mismatch")
             owned.environment["ANTFLY_BOOTSTRAP_ADMIN_PASSWORD"] = owned.password
             config = (owned.output / "antfly-config.json").resolve()
@@ -69,11 +69,15 @@ def lifecycle(engine, data, output, wiring):
                 ],
                 env=["ANTFLY_BOOTSTRAP_ADMIN_PASSWORD"],
                 mounts=[
-                    f"type=bind,src={ANTFLY.parent},dst=/subject,readonly",
+                    *(
+                        [f"type=bind,src={ANTFLY.parent},dst=/subject,readonly"]
+                        if SUBJECT_TAG != "v0.3.0"
+                        else []
+                    ),
                     f"type=bind,src={config},dst=/config.json,readonly",
                     f"type=volume,src={volume},dst=/database",
                 ],
-                entrypoint="/subject/antfly",
+                entrypoint="/subject/antfly" if SUBJECT_TAG != "v0.3.0" else None,
             )
             owned.environment["PAPER_ANTFLY_URL"] = "http://antfly:8080"
         else:
@@ -160,7 +164,12 @@ def lifecycle(engine, data, output, wiring):
                 else POSTGRES_IMAGE
                 if engine == "paradedb"
                 else None,
-                "antfly_binary_sha256": ANTFLY_SHA if engine == "antfly" else None,
+                "antfly_binary_sha256": ANTFLY_SHA
+                if engine == "antfly" and SUBJECT_TAG != "v0.3.0"
+                else None,
+                "antfly_packaging": "official-release-image"
+                if engine == "antfly" and SUBJECT_TAG == "v0.3.0"
+                else None,
             },
         )
         (owned.output / "observations.json").unlink()

@@ -163,7 +163,7 @@ def run(args):
         raise ValueError("calibration/holdout overlap")
     adapter = connect(args.engine)
     result = {
-        "protocol": os.environ.get("PAPER_PROTOCOL", "paper-default-v030-v3"),
+        "protocol": os.environ.get("PAPER_PROTOCOL", "paper-default-v030-v4"),
         "engine": args.engine,
         "scope": "wiring-only"
         if args.wiring

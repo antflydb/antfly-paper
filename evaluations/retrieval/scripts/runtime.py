@@ -17,7 +17,7 @@ CAMPAIGN = REPOSITORY / "evaluations/retrieval"
 CLIENT_IMAGE = os.environ.get("PAPER_CLIENT_IMAGE", "antfly-paper-eval:0.3.0")
 POSTGRES_IMAGE = "paradedb/paradedb@sha256:4df3bcf9f19b32821446967f7874d1a40bee8b9550184cc0d70e93f51ee8af36"
 PGVECTOR_IMAGE = "pgvector/pgvector@sha256:ab49524d18df7200b74ac9a475e1db6297fc1eb57da4c214c63d10ecc4b754fa"
-ANTFLY_RUNTIME = "pgvector/pgvector@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
+LEGACY_ANTFLY_RUNTIME = "pgvector/pgvector@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
 SUBJECTS = {
     "v0.3.0-rc.17": "9096dab1fcd4bbbfed99bc6d0f00ec0f79a53c376bd4d48676e8fb2e62946075",
     "v0.3.0": "6b39c2a425fc946779d69572831c891fb20303efe8517d1b3b79a6b4f0f8c998",
@@ -28,7 +28,9 @@ if SUBJECT_TAG not in SUBJECTS or ANTFLY_PROFILE not in {"default", "tuned"}:
     raise ValueError("unknown paper subject or Antfly profile")
 ANTFLY = ROOT / f"bin/{SUBJECT_TAG}/Linux_arm64/antfly"
 ANTFLY_SHA = SUBJECTS[SUBJECT_TAG]
-LABEL = "antfly-paper.retrieval=paper-default-v030-v3"
+ANTFLY_IMAGE = "ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294"
+ANTFLY_RUNTIME = ANTFLY_IMAGE if SUBJECT_TAG == "v0.3.0" else LEGACY_ANTFLY_RUNTIME
+LABEL = "antfly-paper.retrieval=paper-default-v030-v4"
 
 
 def docker(args, *, env=None, input=None, timeout=120):
@@ -87,7 +89,7 @@ class Owned:
             "PAPER_EXACT_CONTROL_QUERIES": os.environ.get(
                 "PAPER_EXACT_CONTROL_QUERIES", "5"
             ),
-            "PAPER_PROTOCOL": os.environ.get("PAPER_PROTOCOL", "paper-default-v030-v3"),
+            "PAPER_PROTOCOL": os.environ.get("PAPER_PROTOCOL", "paper-default-v030-v4"),
         }
 
     def start(self):

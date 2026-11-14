@@ -1,4 +1,8 @@
-# Retrieval protocol: paper-default-v030-v3
+# Retrieval protocol: paper-default-v030-v4
+
+Version 4 uses the official digest-pinned Antfly v0.3.0 Linux ARM64 image,
+including its shipped entrypoint and libraries. Version 3 used a release
+binary mounted into another runtime image; keep those results separate.
 
 Freeze the subject, inputs and configuration before measurement. Changes
 require a new attempt; retain failures and exclude superseded attempts from
