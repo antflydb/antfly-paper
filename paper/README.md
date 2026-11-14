@@ -7,7 +7,11 @@ holds the bibliography and `figures/` the TikZ figures.
 ```sh
 cd paper
 make pdf      # writes build/antfly.pdf
+make release  # rebuilds and refreshes the committed antfly.pdf
 ```
+
+`antfly.pdf` is the committed build of the current source; refresh it with
+`make release` whenever the source changes.
 
 Building needs TeX Live with `acmart` and its fonts (Libertine, Inconsolata,
 newtx). Without those fonts the class falls back to Computer Modern and still
