@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import secrets
 import subprocess
 import time
@@ -30,7 +31,15 @@ ANTFLY = ROOT / f"bin/{SUBJECT_TAG}/Linux_arm64/antfly"
 ANTFLY_SHA = SUBJECTS[SUBJECT_TAG]
 ANTFLY_IMAGE = "ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294"
 ANTFLY_RUNTIME = ANTFLY_IMAGE if SUBJECT_TAG == "v0.3.0" else LEGACY_ANTFLY_RUNTIME
-LABEL = "antfly-paper.retrieval=paper-default-v030-v4"
+PROTOCOL = os.environ.get("PAPER_PROTOCOL", "paper-default-v030-v4")
+CONTAINER_NOFILE = os.environ.get("PAPER_CONTAINER_NOFILE")
+if CONTAINER_NOFILE:
+    if not re.fullmatch(r"[0-9]+:[0-9]+", CONTAINER_NOFILE):
+        raise ValueError("PAPER_CONTAINER_NOFILE must be soft:hard integers")
+    soft, hard = map(int, CONTAINER_NOFILE.split(":"))
+    if not 1024 <= soft <= hard or PROTOCOL == "paper-default-v030-v4":
+        raise ValueError("nofile override needs valid limits and a distinct protocol")
+LABEL = "antfly-paper.retrieval=" + PROTOCOL
 
 
 def docker(args, *, env=None, input=None, timeout=120):
@@ -114,6 +123,7 @@ class Owned:
         cpus=4,
         memory="12g",
         entrypoint=None,
+        ulimits=(),
     ):
         name = self.prefix + "-" + role
         command = [
@@ -142,6 +152,13 @@ class Owned:
             command += ["--mount", mount]
         for port in ports:
             command += ["-p", f"127.0.0.1::{port}"]
+        effective_ulimits = list(ulimits)
+        if CONTAINER_NOFILE and not any(
+            x.startswith("nofile=") for x in effective_ulimits
+        ):
+            effective_ulimits.append("nofile=" + CONTAINER_NOFILE)
+        for limit in effective_ulimits:
+            command += ["--ulimit", limit]
         if entrypoint:
             command += ["--entrypoint", entrypoint]
         command += [image, *args]
@@ -152,7 +169,7 @@ class Owned:
     def port(self, name, port):
         return int(docker(["port", name, f"{port}/tcp"]).strip().rsplit(":", 1)[1])
 
-    def postgres(self, image=POSTGRES_IMAGE):
+    def postgres(self, image=POSTGRES_IMAGE, *, ulimits=()):
         volume = self.volume("postgres-data")
         name = self.container(
             "postgres",
@@ -169,6 +186,7 @@ class Owned:
             env=["POSTGRES_PASSWORD"],
             mounts=[f"type=volume,src={volume},dst=/var/lib/postgresql"],
             ports=[5432],
+            ulimits=ulimits,
         )
 
         def ready():
@@ -206,7 +224,18 @@ class Owned:
             input=sql,
         )
 
-    def client(self, role, args, *, env=(), mounts=(), ports=(), cpus=1, memory="1g"):
+    def client(
+        self,
+        role,
+        args,
+        *,
+        env=(),
+        mounts=(),
+        ports=(),
+        cpus=1,
+        memory="1g",
+        ulimits=(),
+    ):
         return self.container(
             role,
             get_client_image(),
@@ -219,6 +248,7 @@ class Owned:
             ports=ports,
             cpus=cpus,
             memory=memory,
+            ulimits=ulimits,
         )
 
     def wait_exit(self, name, timeout=120):

@@ -13,6 +13,7 @@ from runtime import (
     ANTFLY_RUNTIME,
     ANTFLY_SHA,
     CAMPAIGN,
+    CONTAINER_NOFILE,
     PGVECTOR_IMAGE,
     POSTGRES_IMAGE,
     ROOT,
@@ -144,6 +145,7 @@ def lifecycle(engine, data, output, wiring):
                 },
                 "requirements_sha256": sha(CAMPAIGN / "requirements.lock"),
                 "protocol": result.get("protocol"),
+                "container_nofile": CONTAINER_NOFILE,
                 "antfly_subject": SUBJECT_TAG,
                 "antfly_profile": ANTFLY_PROFILE,
                 "postgres_build_config": {

@@ -1,0 +1,8 @@
+{
+  "protocol": "lifecycle-v1",
+  "antfly": {"version": "v0.3.0", "commit": "727b70d1e22714a11a1b6a06ede48c435241237c", "image": "ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294"},
+  "vespa": {"version": "8.781.11", "image": "vespaengine/vespa@sha256:e6d3943aef86fd3e57cceefc51d3005a3807f22a254383d348ae9563bbd68d6c"},
+  "opensearch": {"version": "3.9.0", "image": "opensearchproject/opensearch@sha256:bbdf65cb3d35c61a8ba495f22c1a42d7d7f0df23412e3419bf1e6cfca3ba4774"},
+  "postgres-outbox": {"pgvector": "0.8.7", "image": "pgvector/pgvector@sha256:ab49524d18df7200b74ac9a475e1db6297fc1eb57da4c214c63d10ecc4b754fa", "orchestration": "custom PostgreSQL durable outbox, not Temporal, Dagster or pgai"},
+  "lancedb": {"version": "0.41.0", "requirements": "../retrieval/requirements.lock", "path": "native synchronous embedding functions and merge_insert"}
+}

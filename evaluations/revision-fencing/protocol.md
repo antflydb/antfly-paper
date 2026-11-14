@@ -1,48 +1,57 @@
-# Revision fencing protocol (draft, not frozen)
+# Revision fencing and supported generation migration
 
-Status: draft. Do not measure or report results until this protocol is frozen
-with a name, subject commit and pinned inputs, as in
-[the retrieval protocol](../retrieval/protocol.md).
+Status: draft workload expansion. `lifecycle-v1` is the separately frozen
+synthetic subset described in [lifecycle](../lifecycle/README.md). A draft
+model-performance experiment is never reported as completed evidence.
 
-## Claim under test
+## Contract
 
-An index never serves vectors from two embedding models at once. During a
-model change, queries are answered entirely from the old generation until the
-new generation is complete, then entirely from the new one.
+Use supported new indexes, fields or tables for incompatible embedding spaces.
+A0, B1 and A2 are distinct generations, even though A0 and A2 use the same
+encoder. A serving client chooses a generation and its matching query encoder
+as one configuration. This does not assert a global atomic alias transaction.
+Every query's provenance must identify its generation and query model.
 
-## Invariant
+## Comparisons
 
-For every query, all returned vectors and scores come from exactly one
-model revision. A query that observes a mix of revisions is a failure.
+- Antfly v0.3.0 official image, explicit named replacement indexes and actual
+  queryable/complete coverage signals.
+- PostgreSQL with versioned artifact rows, source-conditioned publication and
+  durable work tracking. Name an actual workflow engine when one is used;
+  a custom outbox worker is labeled and counted as custom code.
+- LanceDB Embedded: supported embedding functions and merge_insert into
+  separate tables. Synchronous source acceptance is compared with a derived-ready
+  write, not a separately acknowledged asynchronous source commit.
+- OpenSearch: separate semantic fields and ML Commons connectors and supported endpoint
+  compatibility, task/refresh/readiness and application cutover procedure.
+- Vespa: separate synthetic embedding fields with pinned model configuration,
+  configuration convergence, stored-data reindexing and query cutover. Keep
+  its execution explicitly opt-in; documentation is not a measured result.
 
-## Method
+## Schedule and observations
 
-- Subject: a pinned Antfly release, with two embedding models A and B of the
-  same dimension, so a dimension check alone cannot catch mixing.
-- Ingest a fixed corpus under model A until the index is complete.
-- Switch the producer to model B while continuously querying and while new
-  documents are written, then switch back to A before B completes.
-- Each result carries the model revision that produced it, recorded by the
-  harness independently of the engine where possible (for example, by
-  re-embedding returned items with both models and checking which space the
-  score matches).
-- Repeat with a crash during each phase of the switch.
+Ingest A0; keep querying it while building B1. Update source documents during
+the build, observe the latest expected vectors independently, then select B1
+and its encoder. Repeat into A2. Hold old provider replies across source
+updates and cutovers. Include crash/restart during migration and incomplete
+upstream work. Avoid holding a provider's schema-validation call as if it
+were corpus backfill. A provider call barrier proves that request is in flight,
+not the exact response-before-publication instant.
 
-## Baselines
+Run a separate alias-mutation and wrong/missing-revision-ack control against
+explicitly pinned identities. Equal vector dimension prevents dimension
+validation from standing in for model identity. An independent deterministic
+provider makes fixture revision and source fingerprint observable; real
+pinned encoders are a separate performance/relevance experiment. Provider
+attestation tests assume the provider reports its identity truthfully.
 
-- The external pipeline from the head-to-head protocol, using its own
-  versioning convention.
-- Engines whose model change is a configuration update of the same index,
-  where the platform permits it.
+## Metrics and acceptance
 
-## Metrics
-
-- Queries observing a mixed space (expected: zero for Antfly).
-- Time from switch request to a complete, servable new generation.
-- Queries answered during the switch, and their recall against the
-  generation they were served from.
-
-## Open questions before freezing
-
-- Corpus and model pair, with weights pinned by hash.
-- How revision provenance is attested for engines that do not report it.
+Report incompatible-space hits, published obsolete work, post-barrier stale
+results, errors/unavailability, coverage, build/cutover/recovery time, producer
+calls and coordination code. A zero-violation claim requires nonempty query
+samples before/during/after each transition and successful baseline reads;
+empty or failed queries do not pass safety vacuously. Asynchronous visibility
+of an earlier committed representation is reported as lag until the declared
+barrier, not automatically a violation. Failures, deadlines and unsupported
+checks remain explicit; no silent fallback to external vectors.
