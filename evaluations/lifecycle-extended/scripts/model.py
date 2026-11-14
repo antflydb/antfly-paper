@@ -25,6 +25,7 @@ class Model:
         self.revision = "A"
         self.decision_fail = False
         self.embedding_fail = False
+        self.embedding_hold = False
         self.detector_hold = False
         self.pending = {}
         self.ack = True
@@ -48,7 +49,9 @@ class Model:
             revision, ack, fail = self.revision, self.ack, self.decision_fail
             embed_fail = self.embedding_fail
             gate = threading.Event()
-            hold = task == "detector" and self.detector_hold
+            hold = (task == "detector" and self.detector_hold) or (
+                task == "embedding" and self.embedding_hold
+            )
             if hold:
                 self.pending[identity] = gate
             texts = body.get("input", [])
@@ -195,6 +198,7 @@ def serve():
                             "ack",
                             "decision_fail",
                             "embedding_fail",
+                            "embedding_hold",
                             "detector_hold",
                         ]:
                             if name in body:
@@ -204,6 +208,15 @@ def serve():
                         if body.get("release_all") is True:
                             for gate in model.pending.values():
                                 gate.set()
+                        if "release_ids" in body:
+                            ids = body["release_ids"]
+                            if not isinstance(ids, list) or any(
+                                type(i) is not int or i not in model.pending
+                                for i in ids
+                            ):
+                                raise ValueError("expected pending call IDs")
+                            for i in ids:
+                                model.pending[i].set()
                     return self.reply(200, {"ok": True})
                 if self.path not in {
                     "/embed",

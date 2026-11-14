@@ -1,7 +1,13 @@
 # Document application comparison
 
-Status: **qualification in progress**. A runnable adapter is not a completed
-measurement. See each immutable result's checks, source hashes and not-run list.
+Status: **matched application qualification blocked**. With frozen instrument
+`622fb9905a77f74df4b56423de01af50bed07a84`, PostgreSQL completed 13 qualification
+checks. Antfly passed the four preliminary checks, then timed out during
+extractor-backed privacy activation; see [Antfly #1682](https://github.com/antflydb/antfly/issues/1682).
+The detector itself passed the span-bearing positive control. Neither result
+is a fresh end-to-end timing trial: the frozen diagnosis reused previously
+extracted fixture text. Matched serving/backfill cost trials have **not run**.
+See each immutable result's checks, source hashes and not-run list.
 
 This implements one controlled permissioned document-search application on
 Antfly v0.3.0 and PostgreSQL/pgvector with a custom durable outbox. PostgreSQL
@@ -19,7 +25,8 @@ and four scanned, with text, email, permission, page and relevance annotations
 written before model execution. Native text uses PDFium; pages without usable
 text use Florence-2. Both architectures run this **same synchronous PDF
 frontend before source acknowledgement**, then persist the extracted page text.
-Source corrections enter through the same boundary. Each page is short enough
+The lifecycle correction schedule currently changes extracted page-text
+records; it does not re-exercise replacement-PDF extraction. Each page is short enough
 for one chunk; this is not a multi-page or chunk-boundary quality study.
 
 Antfly manages the extracted text's privacy/embedding/full-text lifecycle.

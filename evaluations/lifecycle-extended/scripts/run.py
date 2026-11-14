@@ -23,7 +23,7 @@ spec = importlib.util.spec_from_file_location(
 core = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(core)
 runtime, call, wait = core.runtime, core.call, core.wait
-runtime.LABEL = "antfly-paper.lifecycle=extended-v1"
+runtime.LABEL = "antfly-paper.lifecycle=extended-v2"
 CANARY = "lifecycle-canary@example.invalid"
 
 
@@ -231,6 +231,133 @@ def run(out):
                 index_complete=complete,
             )
             configure(revision="A", ack=True)
+        fixture = __import__("fixture")
+
+        def pending_for(text):
+            state = audit()
+            digest = hashlib.sha256(text.encode()).hexdigest()
+            return [
+                c["id"]
+                for c in state["calls"]
+                if c["id"] in state["pending"] and digest in c.get("inputs_sha256", [])
+            ]
+
+        def vector_hits(table):
+            cell = engine.api(
+                "/query",
+                "POST",
+                {
+                    "table": table,
+                    "indexes": ["vec"],
+                    "embeddings": {"vec": [1, 0]},
+                    "fields": ["_embeddings"],
+                    "limit": 10,
+                },
+            )["responses"][0]
+            if cell.get("status") != 200:
+                raise RuntimeError("vector observation unavailable")
+            return cell.get("hits", {}).get("hits", [])
+
+        phase = "superseded-response-before-latest-publication"
+        engine.api("/tables/supersession", "POST", {"num_shards": 1})
+        engine.api(
+            "/tables/supersession/indexes/vec",
+            "POST",
+            {
+                "type": "embeddings",
+                "dimension": 2,
+                "field": "body",
+                "embedder": {
+                    "provider": "antfly",
+                    "model": "fixture",
+                    "api_url": "http://provider-a:8090",
+                    "model_identity": "a" * 64,
+                },
+            },
+        )
+        engine.api(
+            "/tables/supersession/batch",
+            "POST",
+            {
+                "inserts": {"doc": {"body": "previous published source"}},
+                "sync_level": "full_index",
+            },
+            40,
+        )
+        configure(embedding_hold=True)
+        obsolete = "obsolete held source two"
+        latest = "latest held source three"
+        engine.api(
+            "/tables/supersession/batch",
+            "POST",
+            {"inserts": {"doc": {"body": obsolete}}, "sync_level": "write"},
+        )
+        old_ids = wait(lambda: pending_for(obsolete))
+        engine.api(
+            "/tables/supersession/batch",
+            "POST",
+            {"inserts": {"doc": {"body": latest}}, "sync_level": "write"},
+        )
+        configure(release_ids=old_ids)
+        wait(lambda: pending_for(latest))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            observing = pool.submit(vector_hits, "supersession")
+            time.sleep(0.25)
+            before = observing.result() if observing.done() else None
+            configure(embedding_hold=False, release_all=True)
+            observed = observing.result(timeout=15)
+        forbidden = sum(
+            fixture.matches(h["_source"]["_embeddings"]["vec"], obsolete, "A")
+            for h in observed
+        )
+        check(
+            phase,
+            forbidden == 0,
+            latest_response_proven_held=True,
+            query_blocked_until_release=before is None,
+        )
+
+        def latest_visible():
+            hits = vector_hits("supersession")
+            return len(hits) == 1 and fixture.matches(
+                hits[0]["_source"]["_embeddings"]["vec"], latest, "A"
+            )
+
+        wait(latest_visible)
+        phase = "provider-alias-aba-held-response"
+        aba = "alias B reply released after returning to A"
+        good = "alias restored A positive source"
+        configure(revision="B", embedding_hold=True)
+        engine.api(
+            "/tables/pinned/batch",
+            "POST",
+            {"inserts": {"aba": {"body": aba}}, "sync_level": "write"},
+        )
+        held = wait(lambda: pending_for(aba))
+        configure(revision="A", embedding_hold=False)
+        engine.api(
+            "/tables/pinned/batch",
+            "POST",
+            {"inserts": {"restored": {"body": good}}, "sync_level": "write"},
+        )
+        configure(release_ids=held)
+        wrong = 0
+        seen_good = False
+        for _ in range(20):
+            hits = vector_hits("pinned")
+            wrong += sum(h["_source"]["_embeddings"]["vec"][0] < 0 for h in hits)
+            seen_good = seen_good or any(
+                h["_id"] == "restored"
+                and fixture.matches(h["_source"]["_embeddings"]["vec"], good, "A")
+                for h in hits
+            )
+            time.sleep(0.05)
+        check(
+            phase,
+            wrong == 0 and seen_good,
+            incompatible_space_hits=wrong,
+            restored_model_positive_control=seen_good,
+        )
         phase = "privacy-downstream-coverage"
         engine.api("/tables/privacy", "POST", {"num_shards": 1})
         engine.api(
@@ -418,7 +545,7 @@ def run(out):
         unchanged = hashes == {str(p.relative_to(ROOT)): runtime.sha(p) for p in paths}
         success = success and unchanged
         result = {
-            "protocol": "extended-v1",
+            "protocol": "extended-v2",
             "engine": "antfly",
             "status": "completed" if success else "execution-incomplete",
             "checks": checks,
@@ -427,7 +554,6 @@ def run(out):
                 "on-disk decoded audit",
                 "physical original erasure",
                 "real detector accuracy",
-                "provider alias ABA with held old response",
                 "exact response-before-commit failpoint",
                 "peer extended controls",
             ],

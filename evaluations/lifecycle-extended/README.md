@@ -1,4 +1,4 @@
-# Extended native Antfly controls: extended-v1
+# Extended native Antfly controls: extended-v2
 
 This frozen synthetic subset checks recorded-decision replay, explicit remote
 provider identity and protected downstream privacy on the official Antfly
@@ -41,3 +41,10 @@ passing Antfly-only controls is not a peer architecture ranking.
 Each fresh run emits bounded result/provenance records and checksums. Failed
 state is retained; successful owned resources are reclaimed. Policy API or
 fixture setup failures remain failed attempts, not product findings.
+
+Version 2 adds a stronger source-supersession schedule: hold v2, commit v3,
+release v2 while v3's response is still proven held, and reject any served v2
+vector. The previous published v1 is allowed until the derived-ready barrier.
+It also releases a captured B reply after the provider alias returns to A,
+requiring a restored-A positive read and zero incompatible vectors. These
+remain bounded observations, not a formal proof or distributed cutover test.
