@@ -15,10 +15,11 @@ Polymorphic Database". Build it with `make -C paper pdf`.
 | --- | --- | --- |
 | Authorization under selective filters | [retrieval](evaluations/retrieval/protocol.md) | Frozen; implemented |
 | Synthetic lifecycle controls | [lifecycle](evaluations/lifecycle/README.md) | Implemented subset; see coverage |
+| Recorded replay / revision / privacy controls | [extended lifecycle](evaluations/lifecycle-extended/README.md) | Implemented bounded controls; see exclusions |
 | Revision fencing | [revision-fencing](evaluations/revision-fencing/protocol.md) | Draft |
 | Crash and update correctness | [crash-correctness](evaluations/crash-correctness/protocol.md) | Draft |
 | Privacy coverage | [privacy-coverage](evaluations/privacy-coverage/protocol.md) | Draft |
-| Head-to-head on representative applications | [head-to-head](evaluations/head-to-head/protocol.md) | Draft |
+| Head-to-head on representative applications | [protocol](evaluations/head-to-head/protocol.md), [implementation](evaluations/head-to-head/README.md) | Document qualification implemented; blocked by [privacy activation](https://github.com/antflydb/antfly/issues/1682); cost trials not run |
 
 Draft protocols state the claim, invariants, method and metrics. They must be
 frozen with a subject commit and pinned inputs before any measurement.
