@@ -1,0 +1,9 @@
+lancedb==0.41.0
+pgai[vectorizer-worker]==0.12.1
+psycopg[binary,pool]==3.3.9
+numpy==2.5.4
+pyarrow==26.0.1
+# pgai's optional document parser imports Torch. Pin native ARM64 CPU wheels;
+# the comparison's model calls use the common external inference service.
+torch==2.9.1
+torchvision==0.24.1
