@@ -1,0 +1,51 @@
+% Figure 1: pipeline stack versus inference-native database.
+\begin{tikzpicture}[
+    font=\footnotesize,
+    box/.style={draw, rounded corners=2pt, minimum height=6mm, align=center, inner sep=3pt},
+    accent/.style={box, very thick, fill=black!6},
+    chip/.style={box, minimum width=9mm, inner sep=2pt},
+    arrow/.style={-{Latex[length=1.6mm]}, semithick},
+    panel/.style={draw=black!35, rounded corners=3pt, inner sep=5pt},
+  ]
+  % Left: pipeline stack
+  \node[box, minimum width=30mm] (src) at (0,0) {Source database};
+  \node[box, minimum width=44mm, below=5mm of src] (jobs)
+    {\textbf{Orchestrated pipeline jobs}\\OCR, transcribe, chunk, embed, extract\\{\color{black!60}run outside the database}};
+  \node[box, below=6mm of jobs.south west, anchor=north west, minimum width=13mm] (s1) {Search};
+  \node[box, below=6mm of jobs.south, anchor=north, minimum width=13mm] (s2) {Vectors};
+  \node[box, below=6mm of jobs.south east, anchor=north east, minimum width=13mm] (s3) {Graph};
+  \node[box, minimum width=30mm, below=6mm of s2] (app) {App code joins by ID};
+  \draw[arrow] (src) -- (jobs);
+  \draw[arrow] (jobs.south -| s1) -- (s1);
+  \draw[arrow] (jobs) -- (s2);
+  \draw[arrow] (jobs.south -| s3) -- (s3);
+  \draw[arrow] (s1.south) -- (app.north west);
+  \draw[arrow] (s2) -- (app);
+  \draw[arrow] (s3.south) -- (app.north east);
+  \node[below=2mm of app, color=black!60] (lnote) {A copy per system, each drifting on its own};
+  \begin{scope}[on background layer]
+    \node[panel, fit=(src)(jobs)(s1)(s3)(app)(lnote), label={[anchor=south west, font=\footnotesize\bfseries]north west:Pipeline stack}] {};
+  \end{scope}
+
+  % Right: inference-native database
+  \begin{scope}[xshift=58mm]
+    \node[box, minimum width=30mm] (w) at (0,0) {Write a document};
+    \node[accent, minimum width=44mm, below=5mm of w] (prod)
+      {\textbf{Producers owned by the database}\\OCR, transcribe, chunk, embed,\\extract, resolve, redact};
+    \node[chip, below=6mm of prod.south west, anchor=north west] (c1) {BM25};
+    \node[chip, right=1mm of c1] (c2) {Dense};
+    \node[chip, right=1mm of c2] (c3) {Sparse};
+    \node[chip, right=1mm of c3] (c4) {Graph};
+    \node[chip, right=1mm of c4] (c5) {Rows};
+    \node[box, minimum width=44mm, below=6mm of c3] (house) {\textbf{One document identity, one query}};
+    \draw[arrow] (w) -- (prod);
+    \foreach \c in {c1,c2,c3,c4,c5} {
+      \draw[arrow] (prod.south -| \c) -- (\c);
+      \draw[arrow] (\c) -- (house.north -| \c);
+    }
+    \node[below=2mm of house, color=black!60] (rnote) {Replayed and fenced like any index};
+    \begin{scope}[on background layer]
+      \node[panel, fill=black!3, fit=(w)(prod)(c1)(c5)(house)(rnote), label={[anchor=south west, font=\footnotesize\bfseries]north west:Inference-native database}] {};
+    \end{scope}
+  \end{scope}
+\end{tikzpicture}
