@@ -173,6 +173,7 @@ def run(out, engine_name="antfly"):
     instrument_paths = [
         *HERE.glob("*.py"),
         Path(runtime.__file__),
+        runtime.SUBJECT_IMPLEMENTATION,
         HERE.parent / "subjects.json",
     ]
 
@@ -186,7 +187,7 @@ def run(out, engine_name="antfly"):
     # networks do not publish them on current Desktop releases.
     def start():
         owned.output.mkdir(parents=True, exist_ok=False)
-        runtime.docker(["network", "create", "--label", runtime.LABEL, owned.network])
+        runtime.create_network(owned.network, internal=False)
 
     owned.start = start
     owned.start()
@@ -405,6 +406,7 @@ def run(out, engine_name="antfly"):
             terminal = "instrument-changed-during-run"
             success = False
         provenance = {
+            "antfly_subject": runtime.subject_provenance(),
             "antfly_subject_tag": runtime.SUBJECT_TAG
             if engine_name == "antfly"
             else None,
@@ -417,9 +419,9 @@ def run(out, engine_name="antfly"):
             else runtime.PGVECTOR_IMAGE
             if engine_name == "postgres-outbox"
             else runtime.get_client_image(),
-            "engine_subject": json.loads((HERE.parent / "subjects.json").read_text())[
-                engine_name
-            ],
+            "engine_subject": runtime.subject_provenance()
+            if engine_name == "antfly" and runtime.CANDIDATE
+            else json.loads((HERE.parent / "subjects.json").read_text())[engine_name],
             "client_image": runtime.get_client_image(),
             "scripts_sha256": source_hashes,
             "source_unchanged_during_run": unchanged,

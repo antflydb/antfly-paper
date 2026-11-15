@@ -17,10 +17,12 @@ from runtime import (
     PGVECTOR_IMAGE,
     POSTGRES_IMAGE,
     ROOT,
+    SUBJECT_IS_IMAGE,
     SUBJECT_TAG,
     Owned,
     get_client_image,
     sha,
+    subject_provenance,
     write_records,
 )
 
@@ -42,7 +44,7 @@ def lifecycle(engine, data, output, wiring):
             else:
                 owned.postgres(image=PGVECTOR_IMAGE)
         elif engine == "antfly":
-            if SUBJECT_TAG != "v0.3.0" and sha(ANTFLY) != ANTFLY_SHA:
+            if not SUBJECT_IS_IMAGE and sha(ANTFLY) != ANTFLY_SHA:
                 raise ValueError("Antfly binary checksum mismatch")
             owned.environment["ANTFLY_BOOTSTRAP_ADMIN_PASSWORD"] = owned.password
             config = (owned.output / "antfly-config.json").resolve()
@@ -50,7 +52,7 @@ def lifecycle(engine, data, output, wiring):
                 json.dumps({"inference": {"api_url": "http://127.0.0.1:1"}})
             )
             volume = owned.volume("antfly-data")
-            data_dir = "/antflydb" if SUBJECT_TAG == "v0.3.0" else "/database"
+            data_dir = "/antflydb" if SUBJECT_IS_IMAGE else "/database"
             owned.container(
                 "antfly",
                 ANTFLY_RUNTIME,
@@ -73,13 +75,13 @@ def lifecycle(engine, data, output, wiring):
                 mounts=[
                     *(
                         [f"type=bind,src={ANTFLY.parent},dst=/subject,readonly"]
-                        if SUBJECT_TAG != "v0.3.0"
+                        if not SUBJECT_IS_IMAGE
                         else []
                     ),
                     f"type=bind,src={config},dst=/config.json,readonly",
                     f"type=volume,src={volume},dst={data_dir}",
                 ],
-                entrypoint="/subject/antfly" if SUBJECT_TAG != "v0.3.0" else None,
+                entrypoint="/subject/antfly" if not SUBJECT_IS_IMAGE else None,
             )
             owned.environment["PAPER_ANTFLY_URL"] = "http://antfly:8080"
         else:
@@ -147,6 +149,7 @@ def lifecycle(engine, data, output, wiring):
                 "protocol": result.get("protocol"),
                 "container_nofile": CONTAINER_NOFILE,
                 "antfly_subject": SUBJECT_TAG,
+                "antfly_subject_provenance": subject_provenance(),
                 "antfly_profile": ANTFLY_PROFILE,
                 "postgres_build_config": {
                     "maintenance_work_mem": "6GB",
@@ -170,7 +173,9 @@ def lifecycle(engine, data, output, wiring):
                 "antfly_binary_sha256": ANTFLY_SHA
                 if engine == "antfly" and SUBJECT_TAG != "v0.3.0"
                 else None,
-                "antfly_packaging": "official-release-image"
+                "antfly_packaging": "pinned-main-image"
+                if engine == "antfly" and SUBJECT_TAG.startswith("main-")
+                else "official-release-image"
                 if engine == "antfly" and SUBJECT_TAG == "v0.3.0"
                 else None,
             },

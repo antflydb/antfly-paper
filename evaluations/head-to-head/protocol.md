@@ -60,3 +60,58 @@ acceptance checks. Quantitative storage/recomputation and typed-decision claims
 need matched-quality controls including original source/model bytes or the same
 batched local classifier. Synthetic lifecycle fixtures cannot substitute for
 real-model quality or throughput. Missing results remain not-run.
+
+## Main candidate condition: document-main-v2
+
+A pinned-main manifest selects `document-main-v2`; historical `document-v1`
+results retain their original interpretation. Both application architectures use
+the same candidate native inference image and the same hashed model bytes.
+Fresh trials extract all eight PDFs and replacement PDFs at source versions 2,
+3 and 5. Version 4 changes permissions over the preceding source. Controlled
+scaling copies those authored pages and does not constitute a natural-corpus
+quality result. Reusing extracted text is diagnostic only.
+
+The source-acceptance path uses asynchronous writes in both architectures;
+ready-state observations and explicit `full_index` barriers are separate. A
+held deletion uses source-write acknowledgement, permitting the held-work
+experiment to proceed. Standalone native-contract controls measure the new
+`commit_requires: direct_enrichments` and atomic alias API; this application's
+explicit named-generation queries do not themselves establish alias cutover.
+
+Record time from process kill to recovered useful behavior, injected actions,
+and inference calls. These are harness recovery observations, not measured
+human operator effort. For backfill, record actual ready-state completion time
+separately from the fixed serving window and its combined wall time. Retain
+all arrivals, errors and unavailable results before calculating latency.
+
+Qualification must pass on both architectures before comparative timing. Run
+three fresh trials per architecture in alternating order, with 128 copies of
+each of the eight fixture pages (1,024 pages), 60 seconds serving alone and 60
+seconds serving during backfill at 2 offered queries/second. Preserve per-service
+CPU/memory limits and shared-inference placement across both architectures;
+record those limits and the client image ID in every trial. Report failed
+qualification separately and do not pool main-candidate results with v0.3.0.
+
+The candidate PostgreSQL worker claims up to 32 durable jobs for the same
+embedding model and submits one batched embedding request. It reuses protected
+text across model generations only when original content and policy epoch
+match, and reuses vectors only when the model also matches. Publication still
+checks the current source version/body and policy under locks; a crash rolls
+back the claimed transaction. Source updates enqueue only the affected row;
+policy and generation changes enqueue the relevant table work. Idle polling is
+bounded; completed jobs have no artificial per-item sleep. These choices were
+fixed before comparative timing and retain the same one-CPU/one-GiB application
+cap. No throughput pilot is used to select a winning baseline configuration.
+
+After the campaign, run `evaluations/analysis/summarize_application_campaign.py`
+with `--campaign`, the full frozen `--revision`, and a new `--out`. It verifies
+paired source receipts, common subject/configuration and all three complete
+trials. Eligible reports give medians and ranges of per-trial p50/p95 and
+backfill completion, retaining availability/error/quality counts. Missing or
+failed qualification/trials suppress comparative timing. Requests from the
+three trials are not pooled into a single latency sample.
+
+The serving/backfill windows follow the same qualification sequence in each
+fresh deployment. Model loading during that sequence may populate inference
+caches before the measured new-index backfill. These windows measure behavior
+under that normal cache state; they are not a separate cold-model-start study.

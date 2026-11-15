@@ -2,7 +2,6 @@
 
 import argparse
 import concurrent.futures
-import ipaddress
 import json
 import subprocess
 import sys
@@ -27,7 +26,8 @@ ROOT = HERE.parents[2]
 sys.path.append(str(ROOT / "evaluations/retrieval/scripts"))
 import runtime  # noqa: E402
 
-runtime.LABEL = "antfly-paper.application=document-v1"
+APPLICATION_PROTOCOL = "document-main-v2" if runtime.CANDIDATE else "document-v1"
+runtime.LABEL = "antfly-paper.application=" + APPLICATION_PROTOCOL
 
 
 def run(args):
@@ -36,41 +36,11 @@ def run(args):
     out = args.out.resolve()
     owned = runtime.Owned(out)
     out.mkdir(parents=True, exist_ok=False)
-    network_ids = runtime.docker(["network", "ls", "-q"]).split()
-    existing = (
-        json.loads(runtime.docker(["network", "inspect", *network_ids]))
-        if network_ids
-        else []
-    )
-    ranges = [
-        ipaddress.ip_network(c["Subnet"])
-        for n in existing
-        for c in (n.get("IPAM", {}).get("Config") or [])
-        if c.get("Subnet")
-    ]
-    subnet = next(
-        ipaddress.ip_network(f"10.232.{i}.0/24")
-        for i in range(256)
-        if not any(
-            ipaddress.ip_network(f"10.232.{i}.0/24").overlaps(r)
-            for r in ranges
-            if r.version == 4
-        )
-    )
-    runtime.docker(
-        [
-            "network",
-            "create",
-            "--subnet",
-            str(subnet),
-            "--label",
-            runtime.LABEL,
-            owned.network,
-        ]
-    )
+    runtime.create_network(owned.network, internal=False)
     instrument_paths = [
         *HERE.glob("*.py"),
         Path(runtime.__file__),
+        runtime.SUBJECT_IMPLEMENTATION,
         ROOT / "evaluations/retrieval/requirements.lock",
         ROOT / "evaluations/retrieval/Dockerfile",
     ]
@@ -187,6 +157,37 @@ def run(args):
             if owned.wait_exit(frontend, timeout=600) != 0:
                 raise RuntimeError("PDF frontend failed")
         rows = json.loads((out / "extracted.json").read_text())
+
+        def correction(version):
+            job = owned.client(
+                "correction" + str(version),
+                [
+                    "/application/frontend.py",
+                    "--data",
+                    "/corpus",
+                    "--correction-version",
+                    str(version),
+                    "--out",
+                    f"/output/correction-{version}.json",
+                ],
+                mounts=[
+                    f"type=bind,src={HERE},dst=/application,readonly",
+                    f"type=bind,src={args.data.resolve()},dst=/corpus,readonly",
+                    f"type=bind,src={out},dst=/output",
+                ],
+                cpus=1,
+                memory="1g",
+            )
+            if owned.wait_exit(job, timeout=180) != 0:
+                raise RuntimeError("replacement PDF extraction failed")
+            row = json.loads((out / f"correction-{version}.json").read_text())[0]
+            if row["id"] != "d000" or row["version"] != version:
+                raise ValueError("wrong correction identity")
+            return {
+                k: row[k]
+                for k in ("body", "tenant", "version", "page", "source_pdf_sha256")
+            }
+
         annotations = json.loads((args.data / "annotations.json").read_text())[
             "documents"
         ]
@@ -314,10 +315,11 @@ def run(args):
             owned.environment["PAPER_DB_URL"] = (
                 f"postgresql://postgres:{owned.password}@postgres:5432/postgres"
             )
+            owned.environment["PAPER_WORKER_BATCH"] = "32" if runtime.CANDIDATE else "1"
             service = owned.client(
                 "pipeline",
                 ["/application/pipeline.py"],
-                env=["PAPER_DB_URL"],
+                env=["PAPER_DB_URL", "PAPER_WORKER_BATCH"],
                 mounts=[f"type=bind,src={HERE},dst=/application,readonly"],
                 ports=[8091],
                 cpus=1,
@@ -391,6 +393,7 @@ def run(args):
         )
         phase = "restart-after-publication"
         before = len(audit())
+        recovery_began = time.monotonic()
         runtime.docker(["kill", service])
         runtime.docker(["start", service])
         if args.engine == "antfly":
@@ -409,6 +412,11 @@ def run(args):
             "committed-artifacts-survive-restart",
             assess(True),
             model_calls_after_restart=len(audit()) - before,
+            recovery_seconds=time.monotonic() - recovery_began,
+            injected_actions=[
+                "kill application process",
+                "restart same durable volume",
+            ],
         )
         phase = "held-update-and-delete"
         control(True)
@@ -418,6 +426,8 @@ def run(args):
             "version": 2,
             "page": 1,
         }
+        if runtime.CANDIDATE:
+            changed = correction(2)
         app.write("d000", changed)
         app.write(
             "temporary",
@@ -429,15 +439,18 @@ def run(args):
             },
         )
         wait(lambda: any(x["pending"] and x["task"] == "embed" for x in audit()))
-        app.write(
-            "d000",
-            {
+        third = (
+            correction(3)
+            if runtime.CANDIDATE
+            else {
                 **changed,
                 "body": "Prune apple trees in late winter. Corrected orchard guidance.",
                 "version": 3,
-            },
+            }
         )
-        app.delete("temporary")
+        app.write("d000", third)
+        app.delete("temporary", sync="write" if runtime.CANDIDATE else "full_index")
+        recovery_began = time.monotonic()
         runtime.docker(["kill", service])
         runtime.docker(["start", service])
         app.url = f"http://127.0.0.1:{owned.port(service, 8080 if args.engine == 'antfly' else 8091)}"
@@ -456,13 +469,18 @@ def run(args):
             observed["available"]
             and not any(h["id"] == "temporary" for h in observed["hits"])
             and any(h["id"] == "d000" and h["version"] == 3 for h in observed["hits"]),
+            recovery_seconds=time.monotonic() - recovery_began,
+            injected_actions=[
+                "kill application process",
+                "restart same durable volume",
+                "release held provider responses",
+            ],
         )
         phase = "permission-restriction"
         app.write(
             "d000",
             {
-                **changed,
-                "body": "Prune apple trees in late winter. Corrected orchard guidance.",
+                **third,
                 "version": 4,
                 "tenant": "beta",
             },
@@ -483,15 +501,17 @@ def run(args):
                 for row in audit()[migration_begin:]
             )
         )
-        app.write(
-            "d000",
-            {
+        fifth = (
+            correction(5)
+            if runtime.CANDIDATE
+            else {
                 **changed,
                 "body": "Prune apple trees in late winter. Final orchard guidance.",
                 "version": 5,
                 "tenant": "beta",
-            },
+            }
         )
+        app.write("d000", fifth)
         runtime.docker(["kill", service])
         runtime.docker(["start", service])
         app.url = f"http://127.0.0.1:{owned.port(service, 8080 if args.engine == 'antfly' else 8091)}"
@@ -555,6 +575,16 @@ def run(args):
                         "topic": truth["topic"],
                     }
             wait(lambda: app.ready("a2"), 600)
+            if runtime.CANDIDATE:
+                scaled = app.completion("a2")
+                check(
+                    "scaled-ingest-complete-counts",
+                    scaled.get("observation_complete") is True
+                    and scaled.get("source_total")
+                    == scaled.get("produced")
+                    == len(ledger),
+                    coverage=scaled,
+                )
             phase = "serving-only"
             serving = drive(
                 app,
@@ -571,7 +601,12 @@ def run(args):
             began = time.monotonic()
             app.generation("b2", MIGRATION_EMBEDDER)
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                completion = pool.submit(lambda: wait(lambda: app.ready("b2"), 600))
+
+                def observe_completion():
+                    wait(lambda: app.ready("b2"), 600)
+                    return time.monotonic() - began
+
+                completion = pool.submit(observe_completion)
                 concurrent_rows = drive(
                     app,
                     annotations,
@@ -581,8 +616,20 @@ def run(args):
                     rate=args.rate,
                     ledger=ledger,
                 )
-                completion.result()
+                backfill_seconds = completion.result()
             completed_seconds = time.monotonic() - began
+            completed_count = len(ledger)
+            if runtime.CANDIDATE:
+                backfilled = app.completion("b2")
+                check(
+                    "backfill-complete-counts",
+                    backfilled.get("observation_complete") is True
+                    and backfilled.get("source_total")
+                    == backfilled.get("produced")
+                    == len(ledger),
+                    coverage=backfilled,
+                )
+                completed_count = backfilled["produced"]
             (out / "serving-with-backfill.json").write_text(
                 json.dumps(concurrent_rows, indent=2) + "\n"
             )
@@ -590,8 +637,9 @@ def run(args):
                 {
                     "name": phase,
                     "summary": summarize(concurrent_rows),
-                    "completed_target_documents": len(ledger),
+                    "completed_target_documents": completed_count,
                     "window_and_completion_seconds": completed_seconds,
+                    "backfill_completion_seconds": backfill_seconds,
                     "offered_qps": args.rate,
                     "window_seconds": args.duration,
                     "model_placement": "isolated shared remote service in both architectures; equal service caps",
@@ -624,7 +672,8 @@ def run(args):
         (out / "result.json").write_text(
             json.dumps(
                 {
-                    "protocol": "document-v1",
+                    "protocol": APPLICATION_PROTOCOL,
+                    "subject": runtime.subject_provenance(),
                     "engine": args.engine,
                     "status": "completed" if success else "execution-incomplete",
                     "fresh_pdf_frontend": not bool(args.extracted),
@@ -662,7 +711,8 @@ def run(args):
         (out / "provenance.json").write_text(
             json.dumps(
                 {
-                    "protocol": "document-v1",
+                    "protocol": APPLICATION_PROTOCOL,
+                    "subject": runtime.subject_provenance(),
                     "subject_image": runtime.ANTFLY_IMAGE,
                     "client_image": runtime.get_client_image(),
                     "postgres_image": runtime.PGVECTOR_IMAGE,
@@ -688,6 +738,7 @@ def run(args):
                         "diagnostic_extraction_reuse": bool(args.extracted),
                         "privacy_before_write": args.privacy_before_write,
                         "initial_sync": args.initial_sync,
+                        "postgres_worker_batch": 32 if runtime.CANDIDATE else 1,
                     },
                 },
                 indent=2,

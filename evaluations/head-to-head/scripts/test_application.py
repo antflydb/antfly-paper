@@ -31,6 +31,7 @@ class ApplicationControls(unittest.TestCase):
                 self.wfile.write(b'{"ready":true}')
 
             def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
                 seen.append(self.headers.get("X-Antfly-Capability-Token"))
                 self.send_response(200)
                 self.end_headers()

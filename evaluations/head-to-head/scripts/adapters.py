@@ -81,10 +81,10 @@ class Antfly:
             {"inserts": {identity: row}, "sync_level": sync},
         )
 
-    def delete(self, identity):
+    def delete(self, identity, sync="full_index"):
         return self.api(
             "/db/v1/tables/documents/batch",
-            {"deletes": [identity], "sync_level": "full_index"},
+            {"deletes": [identity], "sync_level": sync},
         )
 
     def drop_generation(self, name):
@@ -116,6 +116,9 @@ class Antfly:
     def ready(self, name="a0"):
         value = self.api("/db/v1/tables/documents/indexes/" + name)
         return value.get("status", {}).get("coverage", {}).get("complete", False)
+
+    def completion(self, name):
+        return self.api("/db/v1/tables/documents/indexes/" + name)["status"]["coverage"]
 
     def query(self, tenant, vector, name="a0", text=None, include_vectors=False):
         body = {
@@ -167,7 +170,7 @@ class Postgres:
             wait(self.ready)
         return result
 
-    def delete(self, identity):
+    def delete(self, identity, sync="write"):
         return self.api("/delete", {"id": identity})
 
     def drop_generation(self, name):
@@ -178,6 +181,9 @@ class Postgres:
 
     def ready(self, name="a0"):
         return self.api("/ready", {})["complete"]
+
+    def completion(self, name):
+        return self.api("/ready", {"name": name})
 
     def query(self, tenant, vector, name="a0", text=None, include_vectors=False):
         return request(
