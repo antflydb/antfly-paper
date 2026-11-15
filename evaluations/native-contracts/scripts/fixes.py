@@ -43,7 +43,10 @@ def worker():
         if first is None:
             first = vectors[0].tolist()
         docs = {
-            f"d{offset + i:09d}": {"_embeddings": {"vec": v.tolist()}}
+            f"d{offset + i:09d}": {
+                "ordinal": offset + i,
+                "_embeddings": {"vec": v.tolist()},
+            }
             for i, v in enumerate(vectors)
         }
         status, ack = http(
@@ -55,6 +58,12 @@ def worker():
             raise RuntimeError(
                 f"ingestion rejected at {done}: HTTP {status} {str(ack)[:500]}"
             )
+        if offset == 0:
+            source_status, source = http(url + "/tables/pressure/documents/d000000000")
+            if source_status != 200 or source.get("ordinal") != 0:
+                raise ValueError(
+                    "pressure fixture failed its live-source positive control"
+                )
         done += len(vectors)
         (out / "progress.json").write_text(
             json.dumps({"committed": done, "total": total}) + "\n"
@@ -246,7 +255,12 @@ def run(args):
             (args.out / "descriptor-samples.json").write_text(
                 json.dumps(snapshots, indent=2) + "\n"
             )
-            check("low-limit-ingestion-process-completed", state["ExitCode"] == 0)
+            check(
+                "low-limit-ingestion-process-completed",
+                state["ExitCode"] == 0,
+                worker_exit_code=state["ExitCode"],
+                worker_log_tail=owned.logs(job)[-2000:],
+            )
             result = json.loads((args.out / "worker-result.json").read_text())
             check(
                 "low-limit-full-ingestion",
