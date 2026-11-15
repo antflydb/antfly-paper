@@ -55,3 +55,29 @@ Use `--qualification-only` to stop before timing; otherwise the full sequence is
 explicitly enabled. Pass `--data`, `--models`, `--migration-models` and a new
 `--out`. Logs and a progressively written `campaign.json` retain every command,
 exit status, elapsed time, instrument commit and subject-manifest hash.
+
+## Candidate build
+
+For candidate `18eefbbc53bb29341e9d25f1293e9ff8f9c2ca7a`, initialize recursive
+submodules at the pinned source and use the repository's Zig 0.17.0 toolchain.
+The server-only build uses the release matrix's Linux ARM64 GNU settings:
+
+```sh
+ZIG_GLOBAL_CACHE_DIR="$PWD/.zig-cache/global" ANTFLY_ZIG_MAX_RSS=25769803776 \
+  python3 zig/tools/run_bounded_zig_build.py --zig /path/to/zig -- \
+  build --build-file zig/build.zig antfly \
+  -Dtarget=aarch64-linux-gnu.2.28 -Doptimize=fast -Dstrip=true -Dcpu=baseline \
+  -Dantfly-version=0.3.0-main.18eefbbc53bb \
+  -Dmetal=false -Dcuda=true -Dpjrt=true -Dsystem-blas=false \
+  -Dapple-providers=false -Dantfly-bin-name=antfly \
+  --prefix "$PWD/zig/zig-out" --cache-dir "$PWD/zig/.zig-cache" -j1
+```
+
+Package `zig/zig-out/bin/antfly` as `antfly` and the installed `share/` tree as
+`share/` in a new Docker build context. Build with `Dockerfile.main-overlay`
+and `--build-arg ANTFLY_COMMIT=<full-commit> --platform linux/arm64`.
+The build profile is `linux-arm64-gnu-release-overlay-v030`: it preserves the
+released runtime libraries and replaces the executable, assets and notices.
+It is an experimental CPU-only subject, not a newly released image or evidence
+about GPU behavior. Record the resulting immutable image ID and executable
+checksum; transfer that same image to comparison hosts rather than rebuilding.
