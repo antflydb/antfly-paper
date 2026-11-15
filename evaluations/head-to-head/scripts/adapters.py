@@ -124,10 +124,9 @@ class Antfly:
     def inspection_witness(self, name):
         index = self.api("/db/v1/tables/documents/indexes/" + quote(name, safe=""))
         privacy = self.api("/db/v1/tables/documents/privacy")
-        if not index["status"]["coverage"]["complete"]:
-            raise ValueError("index is not complete")
         return {
             "config": index["config"],
+            "coverage_complete": index["status"]["coverage"]["complete"],
             "checkpoint_config_hash": int(
                 index["status"]["projection_checkpoint_config_fingerprint"], 16
             ),

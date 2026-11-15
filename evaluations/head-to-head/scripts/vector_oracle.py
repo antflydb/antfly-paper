@@ -147,6 +147,7 @@ def validate_space(app, queries, index, model, sources, embed, receipts):
     try:
         before = app.inspection_witness(index)
         attempt["before_witness"] = before
+        require(before.get("coverage_complete") is True, "index is not complete")
         _validate_space(app, queries, index, model, sources, embed, receipts, before)
         attempt["after_witness"] = app.inspection_witness(index)
         require(

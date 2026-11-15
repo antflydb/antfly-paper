@@ -164,6 +164,7 @@ class VectorOracleControls(unittest.TestCase):
             inspections = 0
             changed = False
             ending_error = False
+            ending_incomplete = False
             checkpoint_hash = 42
             checkpoint_generation = 7
 
@@ -172,6 +173,9 @@ class VectorOracleControls(unittest.TestCase):
                     raise OSError("status unavailable")
                 return {
                     "policy_version": "b" * 64,
+                    "coverage_complete": not (
+                        self.ending_incomplete and self.inspections > 0
+                    ),
                     "epoch": int(self.changed and self.inspections > 0),
                     "checkpoint_config_hash": self.checkpoint_hash,
                     "checkpoint_generation": self.checkpoint_generation,
@@ -214,6 +218,7 @@ class VectorOracleControls(unittest.TestCase):
             "deleted": lambda app: setattr(app, "deleted", snapshot),
             "unauthorized-inspection": lambda app: setattr(app, "permits_reader", True),
             "catalog-changed": lambda app: setattr(app, "changed", True),
+            "ending-incomplete": lambda app: setattr(app, "ending_incomplete", True),
             "coherently-stale-recipe": lambda app: setattr(app, "checkpoint_hash", 43),
             "coherently-stale-generation": lambda app: setattr(
                 app, "checkpoint_generation", 8
@@ -227,11 +232,15 @@ class VectorOracleControls(unittest.TestCase):
                     validate(app, attempts)
                 self.assertEqual(attempts[-1]["kind"], "validation_attempt")
                 self.assertEqual(attempts[-1]["verification"], "failed")
-                if name == "catalog-changed":
+                if name in ("catalog-changed", "ending-incomplete"):
                     self.assertNotEqual(
                         attempts[-1]["before_witness"], attempts[-1]["after_witness"]
                     )
                     self.assertIn("catalog changed", attempts[-1]["failure"])
+                    if name == "ending-incomplete":
+                        self.assertFalse(
+                            attempts[-1]["after_witness"]["coverage_complete"]
+                        )
 
         receipts = []
         snapshot["vectors"][0]["values"][0] = 0.0
