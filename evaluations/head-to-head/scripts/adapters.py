@@ -2,6 +2,7 @@
 
 import base64
 import json
+import re
 import time
 from urllib.parse import quote
 
@@ -124,15 +125,91 @@ class Antfly:
     def inspection_witness(self, name):
         index = self.api("/db/v1/tables/documents/indexes/" + quote(name, safe=""))
         privacy = self.api("/db/v1/tables/documents/privacy")
+        status = index["status"]
+        # A physical checkpoint belongs to an owner, not the whole-table
+        # aggregate. This fixture explicitly creates exactly one shard.
+        shards = {}
+        for identity, observed in index.get("shard_status", {}).items():
+            fingerprint = observed.get("projection_checkpoint_config_fingerprint")
+            shards[identity] = {
+                "runtime_present": observed.get("runtime_present") is True,
+                "runtime_fresh": observed.get("runtime_fresh") is True,
+                "coverage_complete": observed.get("coverage", {}).get("complete")
+                is True,
+                "observation_complete": observed.get("coverage", {}).get(
+                    "observation_complete"
+                )
+                is True,
+                "incarnation": observed.get("incarnation"),
+                "checkpoint_status": observed.get("projection_checkpoint_status"),
+                "checkpoint_config_hash": int(fingerprint, 16)
+                if isinstance(fingerprint, str)
+                and re.fullmatch("[0-9a-f]{16}", fingerprint)
+                else None,
+                "checkpoint_generation": observed.get(
+                    "projection_checkpoint_generation"
+                ),
+            }
+        identity, checkpoint = (
+            next(iter(shards.items())) if len(shards) == 1 else (None, {})
+        )
+        incarnation = status.get("incarnation")
+        generation = (
+            int(incarnation[2:], 16)
+            if isinstance(incarnation, str)
+            and re.fullmatch("g-[0-9a-f]{16}", incarnation)
+            else None
+        )
+        topology = {
+            field: status.get(field)
+            for field in (
+                "expected_groups",
+                "reported_groups",
+                "fresh_groups",
+                "stale_groups",
+                "missing_groups",
+                "unknown_remote_groups",
+            )
+        }
+        expected = dict(
+            expected_groups=1,
+            reported_groups=1,
+            fresh_groups=1,
+            stale_groups=0,
+            missing_groups=0,
+            unknown_remote_groups=0,
+        )
+        authoritative = (
+            identity is not None
+            and all(
+                type(topology[field]) is int and topology[field] == value
+                for field, value in expected.items()
+            )
+            and status.get("runtime_present") is True
+            and status.get("runtime_fresh") is True
+            and status.get("coverage", {}).get("observation_complete") is True
+            and checkpoint.get("runtime_present") is True
+            and checkpoint.get("runtime_fresh") is True
+            and checkpoint.get("observation_complete") is True
+            and checkpoint.get("coverage_complete") is True
+            and generation is not None
+            and generation > 0
+            and checkpoint.get("incarnation") == incarnation
+            and checkpoint.get("checkpoint_status") == "clean"
+            and checkpoint.get("checkpoint_config_hash") is not None
+            and type(checkpoint.get("checkpoint_generation")) is int
+            and 0 <= checkpoint["checkpoint_generation"] < 2**64
+        )
         return {
             "config": index["config"],
-            "coverage_complete": index["status"]["coverage"]["complete"],
-            "checkpoint_config_hash": int(
-                index["status"]["projection_checkpoint_config_fingerprint"], 16
-            ),
-            "checkpoint_generation": index["status"][
-                "projection_checkpoint_generation"
-            ],
+            "coverage_complete": status["coverage"]["complete"],
+            "shard_observation_complete": authoritative,
+            "topology": topology,
+            "shards": shards,
+            "checkpoint_shard": identity,
+            "index_generation": generation,
+            "checkpoint_config_hash": checkpoint.get("checkpoint_config_hash"),
+            "checkpoint_generation": checkpoint.get("checkpoint_generation"),
             "policy_version": privacy["policy_version"],
             "policy_etag": privacy["etag"],
         }

@@ -58,7 +58,11 @@ def verify_snapshot(
         "checkpoint recipe mismatch",
     )
     if checkpoint is not None:
-        for field in ("checkpoint_config_hash", "checkpoint_generation"):
+        for field in (
+            "checkpoint_config_hash",
+            "checkpoint_generation",
+            "index_generation",
+        ):
             require(snapshot[field] == checkpoint[field], "stale live " + field)
     require(
         snapshot["applied_sequence"] >= snapshot["replay_target_sequence"],
@@ -148,6 +152,10 @@ def validate_space(app, queries, index, model, sources, embed, receipts):
         before = app.inspection_witness(index)
         attempt["before_witness"] = before
         require(before.get("coverage_complete") is True, "index is not complete")
+        require(
+            before.get("shard_observation_complete") is True,
+            "expected one authoritative checkpoint shard",
+        )
         _validate_space(app, queries, index, model, sources, embed, receipts, before)
         attempt["after_witness"] = app.inspection_witness(index)
         require(

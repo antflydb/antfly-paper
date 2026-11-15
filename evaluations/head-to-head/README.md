@@ -1,11 +1,18 @@
 # Document application comparison
 
-Status: **matched application qualification blocked**. The main-derived
-candidate is subject to the upstream privacy-transition and recovery blockers
-[Antfly #1704](https://github.com/antflydb/antfly/issues/1704),
+Status: **Antfly candidate lifecycle qualification passed**. A fresh-PDF,
+real-model run passed all 14 checks, including migration/rollback stored-vector
+comparisons and ten rejected invalid controls. See the
+[frozen qualification receipt](qualifications/shard-checkpoint-53ae5c8.md).
+The exact subject predates the later #1714 readiness optimization. Matched
+current-instrument PostgreSQL qualification and comparative timing remain
+pending; no comparative performance claim is admitted.
+
+The earlier candidate blockers [Antfly #1704](https://github.com/antflydb/antfly/issues/1704),
 [#1705](https://github.com/antflydb/antfly/issues/1705), and
-[#1706](https://github.com/antflydb/antfly/issues/1706). Comparative timing is not
-admitted. The candidate build recipe and scope are in
+[#1706](https://github.com/antflydb/antfly/issues/1706) are resolved. Historical
+failures and their immutable receipts remain separate from this successful run.
+The candidate build recipe and scope are in
 [the native controls](../native-contracts/README.md); this is a distinct cohort
 from the released v0.3.0 observations.
 
@@ -206,8 +213,13 @@ serving text. It rejects missing, stale, nonfinite and wrong-model results.
 No fallback regenerates an observed vector or substitutes model output for
 storage inspection. The deleted temporary document must have no inspection.
 Catalog witnesses must remain stable across each bounded comparison. Each
-inspection's checkpoint generation and config hash must match the independent
-live index status, so mutually consistent stale inspections cannot pass.
+inspection's index incarnation, checkpoint generation and config hash must
+match the independent live owner in `shard_status`. Aggregate `status` has no
+single physical checkpoint identity. The authored application creates one
+shard; acceptance requires exactly one expected, reported, fresh owner with
+complete authoritative coverage, and records that owner ID. Missing, stale,
+unknown or multiple owners fail closed. Beginning/ending witnesses also detect
+owner changes even when the numeric checkpoint identities happen to match.
 
 `vector-inspections.json` retains the captured publication/source/vector
 evidence for B, still-serving A, and the newly built rollback A generation.
