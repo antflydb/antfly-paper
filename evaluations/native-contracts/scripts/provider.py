@@ -17,6 +17,21 @@ def embedding(text, revision):
     return value if revision == "A" else [-x for x in value]
 
 
+class ContractModel(model.Model):
+    def infer(self, path, body):
+        try:
+            return super().infer(path, body)
+        except TimeoutError:
+            if self.decision_fail and not (
+                path.endswith("embed") or path.endswith("embeddings")
+            ):
+                # The base model records the attempted call first. Make this
+                # an explicit permanent rejection rather than a retry budget test.
+                raise ValueError("controlled producer rejection") from None
+            raise
+
+
+model.Model = ContractModel
 model.embedding = embedding
 if __name__ == "__main__":
     model.serve().serve_forever()
