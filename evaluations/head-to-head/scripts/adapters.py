@@ -3,6 +3,7 @@
 import base64
 import json
 import time
+from urllib.parse import quote
 
 from common import DETECTOR, EMBEDDER, reader_password, request
 
@@ -120,9 +121,48 @@ class Antfly:
     def completion(self, name):
         return self.api("/db/v1/tables/documents/indexes/" + name)["status"]["coverage"]
 
+    def inspection_witness(self, name):
+        index = self.api("/db/v1/tables/documents/indexes/" + quote(name, safe=""))
+        privacy = self.api("/db/v1/tables/documents/privacy")
+        return {
+            "config": index["config"],
+            "coverage_complete": index["status"]["coverage"]["complete"],
+            "checkpoint_config_hash": int(
+                index["status"]["projection_checkpoint_config_fingerprint"], 16
+            ),
+            "checkpoint_generation": index["status"][
+                "projection_checkpoint_generation"
+            ],
+            "policy_version": privacy["policy_version"],
+            "policy_etag": privacy["etag"],
+        }
+
+    def inspect_vectors(self, identity, name, tenant=None):
+        path = (
+            "/db/v1/tables/documents/documents/"
+            + quote(identity, safe="")
+            + "/artifacts/"
+            + quote(name, safe="")
+            + "?detail=raw"
+        )
+        try:
+            manifest = self.api(path, tenant=tenant)
+        except OSError as exc:
+            if "HTTP 404 " in str(exc):
+                return None
+            raise
+        if (
+            manifest.get("route_type") != "dense_index_inspection"
+            or manifest.get("manifest_version") != 1
+        ):
+            raise ValueError("unsupported dense index inspection")
+        return json.loads(manifest["manifest_json"])
+
     def query(self, tenant, vector, name="a0", text=None, include_vectors=False):
         body = {
             "table": "documents",
+            # Kept only for reproducing the historical released-image protocol.
+            # Candidate acceptance always uses the separate administrator oracle.
             "fields": ["body", "tenant", "version", "page"]
             + (["_embeddings." + name] if include_vectors else []),
             "limit": 10,

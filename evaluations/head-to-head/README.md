@@ -182,3 +182,55 @@ have no exemptions. The migration crash waits for an audited request with
 `hold_applied=true`, rather than treating any pending probe as backfill evidence.
 The audit records hashes and hold decisions, never input text. This changes the
 instrument; earlier frozen qualification receipts remain immutable.
+
+## Independent stored-vector oracle
+
+Candidate runs use protocol `document-main-v3`; earlier frozen receipts remain
+unchanged. Released-image `document-v1` reproduction retains its historical
+projection check and does not claim the independent stored-vector guarantee.
+Candidate runs always require administrator inspection, without a legacy fallback.
+
+The Antfly vector oracle uses administrator-only raw artifact inspection of
+each named index (`dense_index_inspection`, version 1), while tenant serving
+queries request only sanitized source fields. The candidate must implement
+`antfly.dense-index-inspection.v1`; an absent or unsupported inspection fails
+qualification. Ordinary tenant credentials must receive HTTP 403 from the raw
+inspection route.
+
+For this eight-document, one-page/one-chunk fixture, the oracle requires an
+exact document set and current source tenant, version and page; matches the
+inspection's sanitized document to the independently retrieved serving row;
+checks policy, generation, recipe and artifact identity; and compares all 384
+stored values to a separate native invocation of the intended model on that
+serving text. It rejects missing, stale, nonfinite and wrong-model results.
+No fallback regenerates an observed vector or substitutes model output for
+storage inspection. The deleted temporary document must have no inspection.
+Catalog witnesses must remain stable across each bounded comparison. Each
+inspection's checkpoint generation and config hash must match the independent
+live index status, so mutually consistent stale inspections cannot pass.
+
+`vector-inspections.json` retains the captured publication/source/vector
+evidence for B, still-serving A, and the newly built rollback A generation.
+Receipts are recorded before validation, with expected source/model/live
+checkpoint facts, serving rows, verification status and failure reason. When
+numeric comparison runs, its independent expected embedding is retained too.
+A failing deleted-document check also retains the unexpected snapshot. Every
+comparison appends an overall `validation_attempt` receipt with both catalog
+witnesses, acceptance or failure, and its reason. Per-document acceptance alone
+does not certify the full attempt. Ending witnesses retain incomplete coverage
+as an observed state; initial coverage must be complete. A failed ending status read is retained
+without hiding the original validation failure.
+The oracle deliberately rejects unexpected chunk counts rather than silently
+changing the authored fixture's acceptance rule. This is qualification evidence
+for the explicit fixture, not a performance or corpus-generalization claim.
+
+Model-free oracle negative controls:
+
+```sh
+python3 -m unittest discover -s evaluations/head-to-head/scripts -p 'test_*.py'
+```
+
+After B passes, ten deliberate mutations of its accepted real snapshot must
+be rejected by the same oracle: wrong model, wrong numeric vector, missing
+vector, unpublished state, stale policy, deleted identity and stale source
+revision, dirty checkpoint, replay debt and mismatched checkpoint recipe. These controls run before the A-consistency and rollback checks.
