@@ -2,7 +2,9 @@
 # Build context: antfly plus share/ from the pinned Zig installation prefix.
 FROM ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294
 ARG ANTFLY_COMMIT
+ARG ANTFLY_VERSION
 LABEL org.opencontainers.image.revision=$ANTFLY_COMMIT
+LABEL org.opencontainers.image.version=$ANTFLY_VERSION
 LABEL org.opencontainers.image.description="Pinned-main CPU paper qualification candidate"
 COPY --chmod=0755 antfly /antfly
 COPY share/antfly /usr/share/antfly

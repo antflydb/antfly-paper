@@ -84,7 +84,8 @@ ZIG_GLOBAL_CACHE_DIR="$PWD/.zig-cache/global" ANTFLY_ZIG_MAX_RSS=25769803776 \
 
 Package `zig/zig-out/bin/antfly` as `antfly` and the installed `share/` tree as
 `share/` in a new Docker build context. Build with `Dockerfile.main-overlay`
-and `--build-arg ANTFLY_COMMIT=<full-commit> --platform linux/arm64`.
+and `--build-arg ANTFLY_COMMIT=<full-commit>` plus
+`--build-arg ANTFLY_VERSION=<binary-version> --platform linux/arm64`.
 The build profile is `linux-arm64-gnu-release-overlay-v030`: it preserves the
 released runtime libraries and replaces the executable, assets and notices.
 It is an experimental CPU-only subject, not a newly released image or evidence
