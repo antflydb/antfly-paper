@@ -173,7 +173,7 @@ def run(out):
                     },
                 },
             )
-        ok(
+        setup_ack = ok(
             "/db/v1/tables/spaces/batch",
             {
                 "inserts": {
@@ -183,6 +183,20 @@ def run(out):
                 "sync_level": "full_index",
             },
         )
+
+        # Alias admission consumes the asynchronously reported durable coverage
+        # proof, rather than the source-write response alone.
+        def targets_ready():
+            return all(
+                ok("/db/v1/tables/spaces/indexes/" + name)
+                .get("status", {})
+                .get("coverage", {})
+                .get("complete")
+                for name in ("a0", "b1")
+            )
+
+        wait(targets_ready)
+        check("alias-targets-report-complete", targets_ready(), batch_ack=setup_ack)
         alias = "/db/v1/tables/spaces/index-aliases/live"
         first = {"index": "a0", "require": "complete", "idempotency_key": "create-a"}
         ok(alias, first, "PUT")
