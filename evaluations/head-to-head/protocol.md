@@ -91,3 +91,22 @@ seconds serving during backfill at 2 offered queries/second. Preserve per-servic
 CPU/memory limits and shared-inference placement across both architectures;
 record those limits and the client image ID in every trial. Report failed
 qualification separately and do not pool main-candidate results with v0.3.0.
+
+The candidate PostgreSQL worker claims up to 32 durable jobs for the same
+embedding model and submits one batched embedding request. It reuses protected
+text across model generations only when original content and policy epoch
+match, and reuses vectors only when the model also matches. Publication still
+checks the current source version/body and policy under locks; a crash rolls
+back the claimed transaction. Source updates enqueue only the affected row;
+policy and generation changes enqueue the relevant table work. Idle polling is
+bounded; completed jobs have no artificial per-item sleep. These choices were
+fixed before comparative timing and retain the same one-CPU/one-GiB application
+cap. No throughput pilot is used to select a winning baseline configuration.
+
+After the campaign, run `evaluations/analysis/summarize_application_campaign.py`
+with `--campaign`, the full frozen `--revision`, and a new `--out`. It verifies
+paired source receipts, common subject/configuration and all three complete
+trials. Eligible reports give medians and ranges of per-trial p50/p95 and
+backfill completion, retaining availability/error/quality counts. Missing or
+failed qualification/trials suppress comparative timing. Requests from the
+three trials are not pooled into a single latency sample.

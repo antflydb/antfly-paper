@@ -304,10 +304,11 @@ def run(args):
             owned.environment["PAPER_DB_URL"] = (
                 f"postgresql://postgres:{owned.password}@postgres:5432/postgres"
             )
+            owned.environment["PAPER_WORKER_BATCH"] = "32" if runtime.CANDIDATE else "1"
             service = owned.client(
                 "pipeline",
                 ["/application/pipeline.py"],
-                env=["PAPER_DB_URL"],
+                env=["PAPER_DB_URL", "PAPER_WORKER_BATCH"],
                 mounts=[f"type=bind,src={HERE},dst=/application,readonly"],
                 ports=[8091],
                 cpus=1,
@@ -720,6 +721,7 @@ def run(args):
                         "diagnostic_extraction_reuse": bool(args.extracted),
                         "privacy_before_write": args.privacy_before_write,
                         "initial_sync": args.initial_sync,
+                        "postgres_worker_batch": 32 if runtime.CANDIDATE else 1,
                     },
                 },
                 indent=2,

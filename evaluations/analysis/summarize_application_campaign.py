@@ -138,6 +138,7 @@ def main(args):
                 lines.append(
                     f"| {engine} | {name} | {values[0]} | {values[1]} | {phase['errors']} / {phase['arrivals']} |"
                 )
+        for engine, phases in report["summaries"].items():
             backfill = phases["serving-with-backfill"]["backfill_seconds"]
             lines += [
                 "",

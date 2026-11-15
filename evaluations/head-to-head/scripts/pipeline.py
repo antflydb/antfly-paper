@@ -50,10 +50,14 @@ def initialize():
                 )
 
 
-def enqueue(db):
-    db.execute("""INSERT INTO job(generation,id,version,epoch,body)
-        SELECT g.name,s.id,s.version,p.epoch,s.body FROM source s CROSS JOIN generation g CROSS JOIN policy p
-        ON CONFLICT DO NOTHING""")
+def enqueue(db, identity=None):
+    query = """INSERT INTO job(generation,id,version,epoch,body)
+        SELECT g.name,s.id,s.version,p.epoch,s.body FROM source s CROSS JOIN generation g CROSS JOIN policy p"""
+    params = ()
+    if identity is not None:
+        query += " WHERE s.id=%s"
+        params = (identity,)
+    db.execute(query + " ON CONFLICT DO NOTHING", params)
 
 
 def sanitize(text):
@@ -83,29 +87,64 @@ def sanitize(text):
 
 
 def worker():
+    batch_size = int(os.environ.get("PAPER_WORKER_BATCH", "1"))
+    if not 1 <= batch_size <= 128:
+        raise ValueError("bounded worker batch required")
     while True:
-        selected = None
+        selected = []
         try:
             with psycopg.connect(URL) as db:
-                job = db.execute("""SELECT j.generation,j.id,j.version,j.epoch,j.body,g.model,p.enabled
+                first = db.execute("""SELECT g.model FROM job j JOIN generation g ON g.name=j.generation
+                    WHERE j.state='pending' AND j.attempts<5 ORDER BY j.version,j.id LIMIT 1""").fetchone()
+                jobs = (
+                    []
+                    if not first
+                    else db.execute(
+                        """SELECT j.generation,j.id,j.version,j.epoch,j.body,g.model,p.enabled
                     FROM job j JOIN generation g ON g.name=j.generation CROSS JOIN policy p
-                    WHERE j.state='pending' AND j.attempts<5 ORDER BY j.version,j.id
-                    FOR UPDATE OF j SKIP LOCKED LIMIT 1""").fetchone()
-                if job:
+                    WHERE j.state='pending' AND j.attempts<5 AND g.model=%s ORDER BY j.version,j.id,j.generation
+                    FOR UPDATE OF j SKIP LOCKED LIMIT %s""",
+                        (first[0], batch_size),
+                    ).fetchall()
+                )
+                selected = [job[:4] for job in jobs]
+                prepared = []
+                pending = []
+                for job in jobs:
                     gen, identity, version, epoch, body, model, protected = job
-                    selected = job[:4]
                     reusable = db.execute(
-                        """SELECT a.body,a.embedding::text FROM artifact a
+                        """SELECT a.body,a.embedding::text,g.model FROM artifact a
                         JOIN generation g ON g.name=a.generation
                         JOIN job j ON j.generation=a.generation AND j.id=a.id AND j.version=a.version AND j.epoch=a.epoch
-                        WHERE a.id=%s AND a.epoch=%s AND g.model=%s AND j.body=%s AND j.state='published' LIMIT 1""",
-                        (identity, epoch, model, body),
+                        WHERE a.id=%s AND a.epoch=%s AND j.body=%s AND j.state='published'
+                        ORDER BY (g.model=%s) DESC LIMIT 1""",
+                        (identity, epoch, body, model),
                     ).fetchone()
-                    if reusable:
-                        safe, vector = reusable[0], json.loads(reusable[1])
-                    else:
-                        safe = sanitize(body) if protected else body
-                        vector = embed([safe], MODELS, model)[0]
+                    # Privacy depends on original content and policy epoch,
+                    # independently of the embedding model generation.
+                    safe = (
+                        reusable[0]
+                        if reusable
+                        else sanitize(body)
+                        if protected
+                        else body
+                    )
+                    vector = (
+                        json.loads(reusable[1])
+                        if reusable and reusable[2] == model
+                        else None
+                    )
+                    prepared.append([job, safe, vector])
+                    if vector is None:
+                        pending.append(len(prepared) - 1)
+                if pending:
+                    vectors = embed([prepared[n][1] for n in pending], MODELS, first[0])
+                    if len(vectors) != len(pending):
+                        raise ValueError("incomplete embedding batch")
+                    for n, vector in zip(pending, vectors):
+                        prepared[n][2] = vector
+                for job, safe, vector in prepared:
+                    gen, identity, version, epoch, body, model, protected = job
                     current = db.execute(
                         "SELECT body,version,tenant,page FROM source WHERE id=%s FOR UPDATE",
                         (identity,),
@@ -134,17 +173,20 @@ def worker():
                         state = "superseded"
                     db.execute(
                         "UPDATE job SET state=%s,attempts=attempts+1 WHERE generation=%s AND id=%s AND version=%s AND epoch=%s",
-                        (state, *selected),
+                        (state, *job[:4]),
                     )
         except Exception as exc:
             print("worker: " + type(exc).__name__, flush=True)
             if selected:
                 with psycopg.connect(URL) as db:
-                    db.execute(
-                        "UPDATE job SET attempts=attempts+1 WHERE generation=%s AND id=%s AND version=%s AND epoch=%s",
-                        selected,
-                    )
-        time.sleep(0.02)
+                    for key in selected:
+                        db.execute(
+                            "UPDATE job SET attempts=attempts+1 WHERE generation=%s AND id=%s AND version=%s AND epoch=%s",
+                            key,
+                        )
+            time.sleep(0.1)
+        if not selected:
+            time.sleep(0.02)
 
 
 def execute(path, body):
@@ -164,7 +206,7 @@ def execute(path, body):
             db.execute(
                 "UPDATE artifact SET tenant=%s WHERE id=%s", (row["tenant"], body["id"])
             )
-            enqueue(db)
+            enqueue(db, body["id"])
         elif path == "/delete":
             db.execute("DELETE FROM source WHERE id=%s", (body["id"],))
         elif path == "/generation":
