@@ -248,7 +248,9 @@ def run(out):
         check(
             "alias-survives-restart",
             ok(alias)["index"] == "a0"
-            and top(query("spaces", indexes=["live"], semantic_search="red-query"))
+            and top(
+                query("spaces", indexes=["live"], semantic_search="red-restarted-query")
+            )
             == "red",
         )
         phase = "direct-enrichment-gates"
