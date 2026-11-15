@@ -15,9 +15,18 @@ def http(url, body=None, method=None, headers=None, timeout=60):
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:
-            return response.status, json.load(response)
+            return response.status, decode(response.read())
     except urllib.error.HTTPError as exc:
-        return exc.code, json.loads(exc.read())
+        return exc.code, decode(exc.read())
+
+
+def decode(raw):
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {"raw_body": raw.decode(errors="replace")[:2000]}
 
 
 def wait(fn, timeout=60):

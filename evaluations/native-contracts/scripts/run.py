@@ -130,7 +130,7 @@ def run(out):
 
         def ok(path, body=None, method=None, **kwargs):
             status, value = api(path, body, method, **kwargs)
-            if status not in (200, 201, 202):
+            if status not in (200, 201, 202, 204):
                 raise ValueError(f"HTTP {status} {path}: {str(value)[:500]}")
             return value
 
