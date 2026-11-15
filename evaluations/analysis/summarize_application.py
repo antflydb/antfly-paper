@@ -99,6 +99,16 @@ def main(args):
             "source_receipt_sha256": sha((directory / "receipt.json").read_bytes()),
         }
     a, p = subjects["antfly"], subjects["postgres"]
+    protocol = a["result"].get("protocol")
+    if protocol not in {"document-v1", "document-main-v2"} or protocol != p[
+        "result"
+    ].get("protocol"):
+        raise ValueError("unmatched or unknown application protocol")
+    for subject in subjects.values():
+        if subject["provenance"].get("protocol") != protocol:
+            raise ValueError("result/provenance protocol mismatch")
+    if a["provenance"].get("subject") != p["provenance"].get("subject"):
+        raise ValueError("unmatched candidate subject")
     for field in (
         "fixture_annotations_sha256",
         "model_files_sha256",
@@ -146,7 +156,23 @@ def main(args):
         )
         for s in subjects.values()
     )
+    if protocol == "document-main-v2":
+        timing_eligible = timing_eligible and all(
+            {"scaled-ingest-complete-counts", "backfill-complete-counts"}.issubset(
+                c["name"] for c in subject["result"]["checks"] if c["passed"]
+            )
+            and all(
+                phase.get("completed_target_documents", 0) > 0
+                and 0
+                < phase.get("backfill_completion_seconds", 0)
+                <= phase.get("window_and_completion_seconds", 0)
+                for phase in subject["result"]["phases"]
+                if phase["name"] == "serving-with-backfill"
+            )
+            for subject in subjects.values()
+        )
     report = {
+        "protocol": protocol,
         "instrument_commit": args.revision,
         "behavior_qualified_both": qualified,
         "timing_comparison_eligible": timing_eligible,
