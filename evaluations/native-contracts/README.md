@@ -43,3 +43,15 @@ additional gates.
 Successful owned resources are reclaimed; failures retain stopped state.
 These standalone-process tests do not establish embedded C ABI, distributed
 Raft or serverless guarantees. Results remain not run until receipts exist.
+
+`campaign.py` runs these main contracts, the 100k descriptor control, the extended
+controls, all five core lifecycle adapters, and fresh document qualification on
+Antfly and the PostgreSQL outbox. It verifies each result's receipt and source
+stability flags. Required main/application failures block timing; peer core
+failures are retained independently. If qualification succeeds, it runs three
+fresh application trials per architecture in alternating order. The invalid
+Fastino-cache diagnostic and issue #1682's inline reproduction run separately.
+Use `--qualification-only` to stop before timing; otherwise the full sequence is
+explicitly enabled. Pass `--data`, `--models`, `--migration-models` and a new
+`--out`. Logs and a progressively written `campaign.json` retain every command,
+exit status, elapsed time, instrument commit and subject-manifest hash.
