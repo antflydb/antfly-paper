@@ -206,8 +206,13 @@ serving text. It rejects missing, stale, nonfinite and wrong-model results.
 No fallback regenerates an observed vector or substitutes model output for
 storage inspection. The deleted temporary document must have no inspection.
 Catalog witnesses must remain stable across each bounded comparison. Each
-inspection's checkpoint generation and config hash must match the independent
-live index status, so mutually consistent stale inspections cannot pass.
+inspection's index incarnation, checkpoint generation and config hash must
+match the independent live owner in `shard_status`. Aggregate `status` has no
+single physical checkpoint identity. The authored application creates one
+shard; acceptance requires exactly one expected, reported, fresh owner with
+complete authoritative coverage, and records that owner ID. Missing, stale,
+unknown or multiple owners fail closed. Beginning/ending witnesses also detect
+owner changes even when the numeric checkpoint identities happen to match.
 
 `vector-inspections.json` retains the captured publication/source/vector
 evidence for B, still-serving A, and the newly built rollback A generation.

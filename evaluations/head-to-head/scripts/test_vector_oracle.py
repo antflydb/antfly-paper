@@ -167,12 +167,16 @@ class VectorOracleControls(unittest.TestCase):
             ending_incomplete = False
             checkpoint_hash = 42
             checkpoint_generation = 7
+            index_generation = 7
 
             def inspection_witness(self, _):
                 if self.ending_error and self.inspections > 0:
                     raise OSError("status unavailable")
                 return {
                     "policy_version": "b" * 64,
+                    "shard_observation_complete": True,
+                    "checkpoint_shard": "group-1",
+                    "index_generation": self.index_generation,
                     "coverage_complete": not (
                         self.ending_incomplete and self.inspections > 0
                     ),
@@ -219,6 +223,9 @@ class VectorOracleControls(unittest.TestCase):
             "unauthorized-inspection": lambda app: setattr(app, "permits_reader", True),
             "catalog-changed": lambda app: setattr(app, "changed", True),
             "ending-incomplete": lambda app: setattr(app, "ending_incomplete", True),
+            "coherently-stale-incarnation": lambda app: setattr(
+                app, "index_generation", 8
+            ),
             "coherently-stale-recipe": lambda app: setattr(app, "checkpoint_hash", 43),
             "coherently-stale-generation": lambda app: setattr(
                 app, "checkpoint_generation", 8
