@@ -217,7 +217,7 @@ Model-free oracle negative controls:
 python3 -m unittest discover -s evaluations/head-to-head/scripts -p 'test_*.py'
 ```
 
-After B passes, seven deliberate mutations of its accepted real snapshot must
+After B passes, ten deliberate mutations of its accepted real snapshot must
 be rejected by the same oracle: wrong model, wrong numeric vector, missing
 vector, unpublished state, stale policy, deleted identity and stale source
-revision. These controls run before the A-consistency and rollback checks.
+revision, dirty checkpoint, replay debt and mismatched checkpoint recipe. These controls run before the A-consistency and rollback checks.

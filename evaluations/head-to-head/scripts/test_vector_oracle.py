@@ -38,6 +38,12 @@ def fixture():
         "document_json": document,
         "document_fingerprint": fingerprint(document),
         "current": True,
+        "publication_authority": "standalone_guarded_coverage",
+        "index_config_hash": 42,
+        "checkpoint_config_hash": 42,
+        "checkpoint_status": "clean",
+        "applied_sequence": 20,
+        "replay_target_sequence": 20,
         "vectors": [
             {
                 "artifact_id": "af1:embedding:"
@@ -49,6 +55,8 @@ def fixture():
                 "provider": "antfly",
                 "model": "model-B",
                 "producer_fingerprint": "c" * 64,
+                "artifact_fingerprint": "d" * 64,
+                "provider_cache_identity": "e" * 16,
                 "source_text": hit["body"],
                 "source_fingerprint": fingerprint(hit["body"]),
                 "values": [1.0] + [0.0] * 383,
@@ -74,7 +82,7 @@ class VectorOracleControls(unittest.TestCase):
     def test_real_receipt_negative_control_driver_rejects_every_mutation(self):
         snapshot, _, source = fixture()
         result = negative_controls(snapshot, source, lambda _: [1.0] + [0.0] * 383)
-        self.assertEqual(len(result), 7)
+        self.assertEqual(len(result), 10)
         self.assertTrue(all(result.values()))
 
     def test_exact_independent_vector_matches(self):
@@ -95,6 +103,9 @@ class VectorOracleControls(unittest.TestCase):
                 copy.deepcopy(s["vectors"][0])
             ),
             "unpublished": lambda s: s.update(current=False),
+            "dirty-checkpoint": lambda s: s.update(checkpoint_status="dirty"),
+            "replay-debt": lambda s: s.update(applied_sequence=19),
+            "wrong-checkpoint-recipe": lambda s: s.update(checkpoint_config_hash=43),
             "stale-policy": lambda s: s.update(policy_version="d" * 64),
             "wrong-index": lambda s: s.update(index="a0"),
             "wrong-document": lambda s: s.update(document_id="temporary"),

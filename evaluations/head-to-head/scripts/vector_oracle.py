@@ -35,6 +35,29 @@ def verify_snapshot(snapshot, hit, index, model, policy_version, source, embed):
         require(
             re.fullmatch("[0-9a-f]{64}", snapshot.get(field, "")) is not None, field
         )
+    require(
+        snapshot.get("publication_authority")
+        in ("standalone_guarded_coverage", "ordered_causal_provenance"),
+        "publication authority",
+    )
+    require(snapshot.get("checkpoint_status") == "clean", "dirty checkpoint")
+    for field in (
+        "index_config_hash",
+        "checkpoint_config_hash",
+        "applied_sequence",
+        "replay_target_sequence",
+    ):
+        require(
+            type(snapshot.get(field)) is int and 0 <= snapshot[field] < 2**64, field
+        )
+    require(
+        snapshot["index_config_hash"] == snapshot["checkpoint_config_hash"],
+        "checkpoint recipe mismatch",
+    )
+    require(
+        snapshot["applied_sequence"] >= snapshot["replay_target_sequence"],
+        "replay debt",
+    )
     generation = snapshot.get("index_generation")
     require(type(generation) is int and generation >= 0, "index generation")
     document_json = snapshot.get("document_json", "")
@@ -83,6 +106,16 @@ def verify_snapshot(snapshot, hit, index, model, policy_version, source, embed):
         base64.urlsafe_b64decode(parts[3] + "=" * (-len(parts[3]) % 4)).decode()
         == vector.get("producer"),
         "artifact producer",
+    )
+    require(
+        re.fullmatch("[0-9a-f]{64}", vector.get("artifact_fingerprint", ""))
+        is not None,
+        "artifact digest",
+    )
+    require(
+        re.fullmatch("[0-9a-f]{16}", vector.get("provider_cache_identity", ""))
+        is not None,
+        "provider cache identity",
     )
     observed = vector.get("values", [])
     expected = embed(hit["body"])
@@ -152,6 +185,13 @@ def negative_controls(snapshot, source, embed):
         ),
         "missing-vector": lambda item: item.update(vectors=[]),
         "unpublished": lambda item: item.update(current=False),
+        "dirty-checkpoint": lambda item: item.update(checkpoint_status="dirty"),
+        "replay-debt": lambda item: item.update(
+            applied_sequence=item["replay_target_sequence"] - 1
+        ),
+        "wrong-checkpoint-recipe": lambda item: item.update(
+            checkpoint_config_hash=item["index_config_hash"] + 1
+        ),
         "stale-policy": lambda item: item.update(policy_version="0" * 64),
         "deleted-identity": lambda item: item.update(document_id="temporary"),
     }
