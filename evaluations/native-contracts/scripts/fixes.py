@@ -20,9 +20,10 @@ def worker():
     out = Path("/output")
     rng = np.random.default_rng(1682)
     url = "http://antfly:8080/db/v1"
-    status, _ = http(url + "/tables/pressure", {"num_shards": 1})
-    assert status == 200
-    status, _ = http(
+    status, created = http(url + "/tables/pressure", {"num_shards": 1})
+    if status not in (200, 201):
+        raise ValueError(f"table creation rejected: HTTP {status} {created}")
+    status, created = http(
         url + "/tables/pressure/indexes/vec",
         {
             "type": "embeddings",
@@ -31,7 +32,8 @@ def worker():
             "external": True,
         },
     )
-    assert status == 200
+    if status not in (200, 201):
+        raise ValueError(f"index creation rejected: HTTP {status} {created}")
     total = int(os.environ["PAPER_FD_ROWS"])
     done = 0
     first = None
