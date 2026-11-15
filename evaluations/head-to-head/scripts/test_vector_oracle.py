@@ -68,6 +68,24 @@ def fixture():
 
 
 class VectorOracleControls(unittest.TestCase):
+    def test_candidate_queries_exclude_raw_vectors_and_legacy_projection_is_explicit(
+        self,
+    ):
+        from adapters import Antfly
+
+        app = object.__new__(Antfly)
+        requests = []
+
+        def api(path, body=None, **kwargs):
+            requests.append(body)
+            return {"responses": [{"status": 200, "hits": {"hits": []}}]}
+
+        app.api = api
+        app.query("alpha", [1.0], "b1")
+        self.assertNotIn("_embeddings.b1", requests[-1]["fields"])
+        app.query("alpha", [1.0], "a0", include_vectors=True)
+        self.assertIn("_embeddings.a0", requests[-1]["fields"])
+
     def verify(self, snapshot, hit=None, source=None):
         _, default_hit, default_source = fixture()
         return verify_snapshot(

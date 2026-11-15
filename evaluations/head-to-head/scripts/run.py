@@ -542,7 +542,7 @@ def run(args):
         }
 
         def validate_space(name, model, queries):
-            if args.engine == "antfly":
+            if args.engine == "antfly" and runtime.CANDIDATE:
                 try:
                     return validate_antfly_space(
                         app,
@@ -577,7 +577,7 @@ def run(args):
             "migration-new-space-vectors",
             validate_space("b1", MIGRATION_EMBEDDER, b_queries),
         )
-        if args.engine == "antfly":
+        if args.engine == "antfly" and runtime.CANDIDATE:
             accepted = vector_receipts[0]["snapshot"]
             controls = negative_controls(
                 accepted,

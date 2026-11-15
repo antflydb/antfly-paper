@@ -159,10 +159,13 @@ class Antfly:
             raise ValueError("unsupported dense index inspection")
         return json.loads(manifest["manifest_json"])
 
-    def query(self, tenant, vector, name="a0", text=None):
+    def query(self, tenant, vector, name="a0", text=None, include_vectors=False):
         body = {
             "table": "documents",
-            "fields": ["body", "tenant", "version", "page"],
+            # Kept only for reproducing the historical released-image protocol.
+            # Candidate acceptance always uses the separate administrator oracle.
+            "fields": ["body", "tenant", "version", "page"]
+            + (["_embeddings." + name] if include_vectors else []),
             "limit": 10,
             "filter_query": {"match_all": {}},
         }

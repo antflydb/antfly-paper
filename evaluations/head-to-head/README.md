@@ -186,7 +186,9 @@ instrument; earlier frozen qualification receipts remain immutable.
 ## Independent stored-vector oracle
 
 Candidate runs use protocol `document-main-v3`; earlier frozen receipts remain
-unchanged.
+unchanged. Released-image `document-v1` reproduction retains its historical
+projection check and does not claim the independent stored-vector guarantee.
+Candidate runs always require administrator inspection, without a legacy fallback.
 
 The Antfly vector oracle uses administrator-only raw artifact inspection of
 each named index (`dense_index_inspection`, version 1), while tenant serving
