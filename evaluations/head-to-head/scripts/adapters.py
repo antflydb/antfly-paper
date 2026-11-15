@@ -117,6 +117,9 @@ class Antfly:
         value = self.api("/db/v1/tables/documents/indexes/" + name)
         return value.get("status", {}).get("coverage", {}).get("complete", False)
 
+    def completion(self, name):
+        return self.api("/db/v1/tables/documents/indexes/" + name)["status"]["coverage"]
+
     def query(self, tenant, vector, name="a0", text=None, include_vectors=False):
         body = {
             "table": "documents",
@@ -178,6 +181,9 @@ class Postgres:
 
     def ready(self, name="a0"):
         return self.api("/ready", {})["complete"]
+
+    def completion(self, name):
+        return self.api("/ready", {"name": name})
 
     def query(self, tenant, vector, name="a0", text=None, include_vectors=False):
         return request(

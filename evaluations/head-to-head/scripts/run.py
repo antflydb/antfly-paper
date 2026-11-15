@@ -557,6 +557,16 @@ def run(args):
                         "topic": truth["topic"],
                     }
             wait(lambda: app.ready("a2"), 600)
+            if runtime.CANDIDATE:
+                scaled = app.completion("a2")
+                check(
+                    "scaled-ingest-complete-counts",
+                    scaled.get("observation_complete") is True
+                    and scaled.get("source_total")
+                    == scaled.get("produced")
+                    == len(ledger),
+                    coverage=scaled,
+                )
             phase = "serving-only"
             serving = drive(
                 app,
@@ -590,6 +600,18 @@ def run(args):
                 )
                 backfill_seconds = completion.result()
             completed_seconds = time.monotonic() - began
+            completed_count = len(ledger)
+            if runtime.CANDIDATE:
+                backfilled = app.completion("b2")
+                check(
+                    "backfill-complete-counts",
+                    backfilled.get("observation_complete") is True
+                    and backfilled.get("source_total")
+                    == backfilled.get("produced")
+                    == len(ledger),
+                    coverage=backfilled,
+                )
+                completed_count = backfilled["produced"]
             (out / "serving-with-backfill.json").write_text(
                 json.dumps(concurrent_rows, indent=2) + "\n"
             )
@@ -597,7 +619,7 @@ def run(args):
                 {
                     "name": phase,
                     "summary": summarize(concurrent_rows),
-                    "completed_target_documents": len(ledger),
+                    "completed_target_documents": completed_count,
                     "window_and_completion_seconds": completed_seconds,
                     "backfill_completion_seconds": backfill_seconds,
                     "offered_qps": args.rate,

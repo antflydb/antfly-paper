@@ -180,7 +180,15 @@ def execute(path, body):
             db.execute("UPDATE policy SET epoch=epoch+1,enabled=true")
             enqueue(db)
         elif path == "/ready":
+            counts = db.execute(
+                """SELECT count(*), count(a.id) FROM source s CROSS JOIN policy p
+                LEFT JOIN artifact a ON a.id=s.id AND a.generation=%s AND a.version=s.version AND a.epoch=p.epoch""",
+                (body.get("name", "a0"),),
+            ).fetchone()
             return {
+                "observation_complete": True,
+                "source_total": counts[0],
+                "produced": counts[1],
                 "complete": db.execute("""SELECT NOT EXISTS(SELECT FROM source s CROSS JOIN generation g CROSS JOIN policy p
                 LEFT JOIN artifact a ON a.id=s.id AND a.generation=g.name AND a.version=s.version AND a.epoch=p.epoch WHERE a.id IS NULL)""").fetchone()[
                     0
