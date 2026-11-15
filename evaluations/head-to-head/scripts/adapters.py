@@ -128,6 +128,12 @@ class Antfly:
             raise ValueError("index is not complete")
         return {
             "config": index["config"],
+            "checkpoint_config_hash": int(
+                index["status"]["projection_checkpoint_config_fingerprint"], 16
+            ),
+            "checkpoint_generation": index["status"][
+                "projection_checkpoint_generation"
+            ],
             "policy_version": privacy["policy_version"],
             "policy_etag": privacy["etag"],
         }

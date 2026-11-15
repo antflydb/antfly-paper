@@ -203,10 +203,16 @@ stored values to a separate native invocation of the intended model on that
 serving text. It rejects missing, stale, nonfinite and wrong-model results.
 No fallback regenerates an observed vector or substitutes model output for
 storage inspection. The deleted temporary document must have no inspection.
-Catalog witnesses must remain stable across each bounded comparison.
+Catalog witnesses must remain stable across each bounded comparison. Each
+inspection's checkpoint generation and config hash must match the independent
+live index status, so mutually consistent stale inspections cannot pass.
 
 `vector-inspections.json` retains the captured publication/source/vector
 evidence for B, still-serving A, and the newly built rollback A generation.
+Receipts are recorded before validation, with expected source/model/live
+checkpoint facts, serving rows, verification status and failure reason. When
+numeric comparison runs, its independent expected embedding is retained too.
+A failing deleted-document check also retains the unexpected snapshot.
 The oracle deliberately rejects unexpected chunk counts rather than silently
 changing the authored fixture's acceptance rule. This is qualification evidence
 for the explicit fixture, not a performance or corpus-generalization claim.

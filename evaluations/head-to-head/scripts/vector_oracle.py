@@ -20,7 +20,9 @@ def fingerprint(text):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def verify_snapshot(snapshot, hit, index, model, policy_version, source, embed):
+def verify_snapshot(
+    snapshot, hit, index, model, policy_version, source, embed, checkpoint=None
+):
     """Check a single-page, single-chunk fixture against independent reads/model."""
     require(isinstance(snapshot, dict), "missing inspection")
     require(
@@ -44,6 +46,7 @@ def verify_snapshot(snapshot, hit, index, model, policy_version, source, embed):
     for field in (
         "index_config_hash",
         "checkpoint_config_hash",
+        "checkpoint_generation",
         "applied_sequence",
         "replay_target_sequence",
     ):
@@ -54,6 +57,9 @@ def verify_snapshot(snapshot, hit, index, model, policy_version, source, embed):
         snapshot["index_config_hash"] == snapshot["checkpoint_config_hash"],
         "checkpoint recipe mismatch",
     )
+    if checkpoint is not None:
+        for field in ("checkpoint_config_hash", "checkpoint_generation"):
+            require(snapshot[field] == checkpoint[field], "stale live " + field)
     require(
         snapshot["applied_sequence"] >= snapshot["replay_target_sequence"],
         "replay debt",
@@ -145,17 +151,55 @@ def validate_space(app, queries, index, model, sources, embed, receipts):
             )
             require(hit["tenant"] == tenant, "unauthorized document")
             snapshot = app.inspect_vectors(identity, index)
-            current = verify_snapshot(
-                snapshot, hit, index, model, policy, sources[identity], embed
-            )
-            require(recipe is None or recipe == current, "mixed index incarnations")
+            receipt = {
+                "index": index,
+                "document_id": identity,
+                "expected_source": dict(sources[identity]),
+                "expected_model": model,
+                "expected_witness": before,
+                "serving_hit": hit,
+                "snapshot": snapshot,
+                "verification": "pending",
+            }
+            receipts.append(receipt)
+
+            def independent_embedding(text, record=receipt):
+                expected = embed(text)
+                record["expected_embedding"] = expected
+                return expected
+
+            try:
+                current = verify_snapshot(
+                    snapshot,
+                    hit,
+                    index,
+                    model,
+                    policy,
+                    sources[identity],
+                    independent_embedding,
+                    before,
+                )
+                require(recipe is None or recipe == current, "mixed index incarnations")
+            except Exception as exc:
+                receipt.update(verification="failed", failure=str(exc)[:4096])
+                raise
+            receipt["verification"] = "accepted"
             recipe = current
             seen.add(identity)
-            receipts.append(snapshot)
     require(seen == set(sources), "incomplete document set")
-    require(
-        app.inspect_vectors("temporary", index) is None, "deleted document retained"
-    )
+    deleted = app.inspect_vectors("temporary", index)
+    if deleted is not None:
+        receipts.append(
+            {
+                "index": index,
+                "document_id": "temporary",
+                "snapshot": deleted,
+                "expected_witness": before,
+                "verification": "failed",
+                "failure": "deleted document retained",
+            }
+        )
+    require(deleted is None, "deleted document retained")
     for tenant in ("alpha", "beta"):
         try:
             app.inspect_vectors(next(iter(sources)), index, tenant=tenant)

@@ -578,7 +578,7 @@ def run(args):
             validate_space("b1", MIGRATION_EMBEDDER, b_queries),
         )
         if args.engine == "antfly":
-            accepted = vector_receipts[0]
+            accepted = vector_receipts[0]["snapshot"]
             controls = negative_controls(
                 accepted,
                 source_ledger[accepted["document_id"]],

@@ -42,6 +42,7 @@ def fixture():
         "index_config_hash": 42,
         "checkpoint_config_hash": 42,
         "checkpoint_status": "clean",
+        "checkpoint_generation": 7,
         "applied_sequence": 20,
         "replay_target_sequence": 20,
         "vectors": [
@@ -144,11 +145,15 @@ class VectorOracleControls(unittest.TestCase):
             permits_reader = False
             inspections = 0
             changed = False
+            checkpoint_hash = 42
+            checkpoint_generation = 7
 
             def inspection_witness(self, _):
                 return {
                     "policy_version": "b" * 64,
                     "epoch": int(self.changed and self.inspections > 0),
+                    "checkpoint_config_hash": self.checkpoint_hash,
+                    "checkpoint_generation": self.checkpoint_generation,
                 }
 
             def query(self, tenant, *_):
@@ -163,7 +168,7 @@ class VectorOracleControls(unittest.TestCase):
                     raise OSError("HTTP 403 /inspection: forbidden")
                 return self.deleted if identity == "temporary" else snapshot
 
-        def validate(app):
+        def validate(app, receipts=None):
             return validate_space(
                 app,
                 [[1.0]],
@@ -171,7 +176,7 @@ class VectorOracleControls(unittest.TestCase):
                 "model-B",
                 {"doc": source},
                 lambda _: [1.0] + [0.0] * 383,
-                [],
+                receipts if receipts is not None else [],
             )
 
         self.assertTrue(validate(App()))
@@ -181,12 +186,33 @@ class VectorOracleControls(unittest.TestCase):
             "deleted": lambda app: setattr(app, "deleted", snapshot),
             "unauthorized-inspection": lambda app: setattr(app, "permits_reader", True),
             "catalog-changed": lambda app: setattr(app, "changed", True),
+            "coherently-stale-recipe": lambda app: setattr(app, "checkpoint_hash", 43),
+            "coherently-stale-generation": lambda app: setattr(
+                app, "checkpoint_generation", 8
+            ),
         }.items():
             with self.subTest(name=name):
                 app = App()
                 setup(app)
                 with self.assertRaises(VectorOracleError):
                     validate(app)
+
+        receipts = []
+        snapshot["vectors"][0]["values"][0] = 0.0
+        with self.assertRaisesRegex(VectorOracleError, "independent vector mismatch"):
+            validate(App(), receipts)
+        self.assertEqual(receipts[0]["verification"], "failed")
+        self.assertEqual(receipts[0]["snapshot"]["vectors"][0]["values"][0], 0.0)
+        self.assertEqual(receipts[0]["expected_embedding"][0], 1.0)
+        snapshot["vectors"][0]["values"][0] = 1.0
+        app = App()
+        app.deleted = snapshot
+        receipts = []
+        with self.assertRaisesRegex(VectorOracleError, "deleted document retained"):
+            validate(app, receipts)
+        self.assertEqual(receipts[-1]["document_id"], "temporary")
+        self.assertEqual(receipts[-1]["verification"], "failed")
+        self.assertEqual(receipts[-1]["snapshot"], snapshot)
 
 
 if __name__ == "__main__":
