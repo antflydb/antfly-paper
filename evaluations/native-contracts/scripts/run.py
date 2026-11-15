@@ -154,6 +154,20 @@ def run(out):
                 else None
             )
 
+        def exact_red(result):
+            return (
+                top(result) == "red"
+                and abs(result["hits"]["hits"][0]["_distance"]) < 1e-6
+            )
+
+        def physical(result, expected):
+            names = set(result.get("resolved_indexes", []))
+            return (
+                expected in names
+                and not (({"a0", "b1"} - {expected}) & names)
+                and "live" not in names
+            )
+
         phase = "alias-routing"
         ok("/db/v1/tables/spaces", {"num_shards": 1})
         for generation, revision in (("a0", "a"), ("b1", "b")):
@@ -205,7 +219,7 @@ def run(out):
         )
         check(
             "alias-initial-model",
-            top(initial) == "red" and initial.get("resolved_indexes") == ["a0"],
+            exact_red(initial) and physical(initial, "a0"),
             response=initial,
         )
         control("a", {"embedding_hold": True})
@@ -232,9 +246,12 @@ def run(out):
         )
         check(
             "alias-held-old-query-pins-index-and-encoder",
-            top(old) == top(new) == "red"
-            and old.get("resolved_indexes") == ["a0"]
-            and new.get("resolved_indexes") == ["b1"],
+            exact_red(old)
+            and exact_red(new)
+            and physical(old, "a0")
+            and physical(new, "b1"),
+            old_response=old,
+            new_response=new,
         )
         wrong = query(
             "spaces", indexes=["b1"], embeddings={"b1": [1, 0]}, fields=["body"]
@@ -263,10 +280,9 @@ def run(out):
         check(
             "alias-survives-restart",
             ok(alias)["index"] == "a0"
-            and top(
+            and exact_red(
                 query("spaces", indexes=["live"], semantic_search="red-restarted-query")
-            )
-            == "red",
+            ),
         )
         phase = "direct-enrichment-gates"
         schema = {
