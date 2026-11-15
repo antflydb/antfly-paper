@@ -1,6 +1,7 @@
 """Campaign-owned Linux resources; no attachment to pre-existing services."""
 
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -11,6 +12,10 @@ import urllib.request
 import uuid
 from functools import lru_cache
 from pathlib import Path
+
+from subject_manifest import load_subject, verify_image
+
+SUBJECT_IMPLEMENTATION = Path(__file__).with_name("subject_manifest.py")
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 ROOT = Path(os.environ.get("PAPER_WORKSPACE", str(REPOSITORY))).resolve()
@@ -23,15 +28,30 @@ SUBJECTS = {
     "v0.3.0-rc.17": "9096dab1fcd4bbbfed99bc6d0f00ec0f79a53c376bd4d48676e8fb2e62946075",
     "v0.3.0": "6b39c2a425fc946779d69572831c891fb20303efe8517d1b3b79a6b4f0f8c998",
 }
-SUBJECT_TAG = os.environ.get("PAPER_SUBJECT_TAG", "v0.3.0")
+PROTOCOL = os.environ.get("PAPER_PROTOCOL", "paper-default-v030-v4")
+CANDIDATE = load_subject(
+    os.environ.get("PAPER_SUBJECT_MANIFEST"),
+    PROTOCOL,
+    os.environ.get("PAPER_SUBJECT_TAG"),
+)
+SUBJECT_TAG = (
+    CANDIDATE["name"] if CANDIDATE else os.environ.get("PAPER_SUBJECT_TAG", "v0.3.0")
+)
 ANTFLY_PROFILE = os.environ.get("PAPER_ANTFLY_PROFILE", "default")
-if SUBJECT_TAG not in SUBJECTS or ANTFLY_PROFILE not in {"default", "tuned"}:
+if (not CANDIDATE and SUBJECT_TAG not in SUBJECTS) or ANTFLY_PROFILE not in {
+    "default",
+    "tuned",
+}:
     raise ValueError("unknown paper subject or Antfly profile")
 ANTFLY = ROOT / f"bin/{SUBJECT_TAG}/Linux_arm64/antfly"
-ANTFLY_SHA = SUBJECTS[SUBJECT_TAG]
-ANTFLY_IMAGE = "ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294"
-ANTFLY_RUNTIME = ANTFLY_IMAGE if SUBJECT_TAG == "v0.3.0" else LEGACY_ANTFLY_RUNTIME
-PROTOCOL = os.environ.get("PAPER_PROTOCOL", "paper-default-v030-v4")
+ANTFLY_SHA = CANDIDATE["binary_sha256"] if CANDIDATE else SUBJECTS[SUBJECT_TAG]
+ANTFLY_IMAGE = (
+    CANDIDATE["image"]
+    if CANDIDATE
+    else "ghcr.io/antflydb/antfly@sha256:115a05eff4729b8a72660a9a682a8f9e6122358d8d0f0c85042baafd9fc59294"
+)
+SUBJECT_IS_IMAGE = bool(CANDIDATE) or SUBJECT_TAG == "v0.3.0"
+ANTFLY_RUNTIME = ANTFLY_IMAGE if SUBJECT_IS_IMAGE else LEGACY_ANTFLY_RUNTIME
 CONTAINER_NOFILE = os.environ.get("PAPER_CONTAINER_NOFILE")
 if CONTAINER_NOFILE:
     if not re.fullmatch(r"[0-9]+:[0-9]+", CONTAINER_NOFILE):
@@ -74,6 +94,50 @@ def wait_for(predicate, timeout=60):
     raise TimeoutError("bounded readiness deadline exceeded")
 
 
+def create_network(name, *, internal=True):
+    ids = docker(["network", "ls", "-q"]).split()
+    networks = json.loads(docker(["network", "inspect", *ids])) if ids else []
+    occupied = [
+        ipaddress.ip_network(c["Subnet"])
+        for n in networks
+        for c in (n.get("IPAM", {}).get("Config") or [])
+        if c.get("Subnet")
+    ]
+    subnet = next(
+        f"198.18.{i}.0/24"
+        for i in range(256)
+        if not any(
+            ipaddress.ip_network(f"198.18.{i}.0/24").overlaps(n)
+            for n in occupied
+            if n.version == 4
+        )
+    )
+    return docker(
+        [
+            "network",
+            "create",
+            *(["--internal"] if internal else []),
+            "--subnet",
+            subnet,
+            "--label",
+            LABEL,
+            name,
+        ]
+    )
+
+
+def subject_provenance():
+    return (
+        dict(CANDIDATE)
+        if CANDIDATE
+        else {
+            "release_tag": SUBJECT_TAG,
+            "image": ANTFLY_IMAGE,
+            "binary_sha256": ANTFLY_SHA,
+        }
+    )
+
+
 @lru_cache(maxsize=1)
 def get_client_image():
     return docker(["image", "inspect", CLIENT_IMAGE, "--format", "{{.Id}}"]).strip()
@@ -81,6 +145,8 @@ def get_client_image():
 
 class Owned:
     def __init__(self, output):
+        if CANDIDATE:
+            verify_image(ANTFLY_IMAGE, CANDIDATE["commit"], ANTFLY_SHA, docker)
         self.output = Path(output)
         self.prefix = "paper-cmp-" + uuid.uuid4().hex[:10]
         self.network = self.prefix
@@ -103,7 +169,7 @@ class Owned:
 
     def start(self):
         self.output.mkdir(parents=True, exist_ok=False)
-        docker(["network", "create", "--internal", "--label", LABEL, self.network])
+        create_network(self.network)
 
     def volume(self, role):
         name = self.prefix + "-" + role
