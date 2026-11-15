@@ -158,7 +158,9 @@ def main(args):
     )
     if protocol == "document-main-v2":
         timing_eligible = timing_eligible and all(
-            {"scaled-ingest-complete-counts", "backfill-complete-counts"}.issubset(
+            {phase["name"] for phase in subject["result"]["phases"]}
+            == {"serving-only", "serving-with-backfill"}
+            and {"scaled-ingest-complete-counts", "backfill-complete-counts"}.issubset(
                 c["name"] for c in subject["result"]["checks"] if c["passed"]
             )
             and all(
