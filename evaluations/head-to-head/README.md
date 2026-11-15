@@ -1,14 +1,21 @@
 # Document application comparison
 
-Status: **pinned-main requalification pending**. The historical released-image
-qualification was blocked; merged fixes have not yet been credited as passing. With frozen instrument
+Status: **matched application qualification blocked**. The main-derived
+candidate is subject to the upstream privacy-transition and recovery blockers
+[Antfly #1704](https://github.com/antflydb/antfly/issues/1704),
+[#1705](https://github.com/antflydb/antfly/issues/1705), and
+[#1706](https://github.com/antflydb/antfly/issues/1706). Comparative timing is not
+admitted. The candidate build recipe and scope are in
+[the native controls](../native-contracts/README.md); this is a distinct cohort
+from the released v0.3.0 observations.
+
+Historical released-image diagnosis: with frozen instrument
 `622fb9905a77f74df4b56423de01af50bed07a84`, PostgreSQL completed 13 qualification
 checks. Antfly passed the four preliminary checks, then timed out during
 extractor-backed privacy activation; see [Antfly #1682](https://github.com/antflydb/antfly/issues/1682).
-The detector itself passed the span-bearing positive control. Neither result
-is a fresh end-to-end timing trial: the frozen diagnosis reused previously
-extracted fixture text. Matched serving/backfill cost trials have **not run**.
-See each immutable result's checks, source hashes and not-run list.
+The detector passed the span-bearing positive control. Those historical runs
+reused previously extracted fixture text and are not fresh end-to-end timing
+trials. Their immutable results, source hashes and not-run lists remain separate.
 
 This implements one controlled permissioned document-search application on
 Antfly and PostgreSQL/pgvector with a custom durable outbox. Historical runs

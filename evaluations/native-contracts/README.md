@@ -63,7 +63,9 @@ release-profile build: its compiled metadata adapter lacks `hasIndexAliases`
 and `validateTableIndexMutation`. [Antfly PR #1703](https://github.com/antflydb/antfly/pull/1703)
 adds the missing owner projections. The repair candidate is
 `4882823a16312d7b7ee84981ef183ebe2489f811`; it is main-derived and not yet a
-merged main or released observation. Its version flag is
+merged main or released observation. Its GNU ARM64 release-profile build and
+Linux image startup pass; the full application remains blocked by the upstream
+issues linked in [the application status](../head-to-head/README.md). Its version flag is
 `-Dantfly-version=0.3.0-main.4882823a16`. Retain this source distinction in
 all result manifests.
 

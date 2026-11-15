@@ -64,6 +64,8 @@ def main(args):
     )
     report = {
         "instrument_commit": args.revision,
+        "analysis_source_sha256": paired.sha(Path(__file__).read_bytes()),
+        "completed_paired_trials": len(pairs),
         "subject_manifest_sha256": campaign["subject_manifest_sha256"],
         "comparison_eligible": eligible,
         "missing_paired_trials": missing,
@@ -121,7 +123,7 @@ def main(args):
         "",
         f"Comparison eligible: **{eligible}**.",
         "",
-        "Three independent trials per architecture; fixed offered load and resource caps. Medians and ranges below summarize trial statistics, not pooled requests.",
+        f"Completed paired timing trials: {len(pairs)}/3. The protocol plans three independent trials per architecture at fixed offered load and resource caps. Eligible medians and ranges summarize trial statistics, not pooled requests.",
         "",
     ]
     if eligible:

@@ -93,7 +93,14 @@ def main(args):
     subjects = {}
     for engine, directory in (("antfly", args.antfly), ("postgres", args.postgres)):
         result, provenance = verify(directory, engine, args.revision)
+        failure = None
+        if (directory / "failure.json").exists():
+            receipt = json.loads((directory / "receipt.json").read_text())["sha256"]
+            if "failure.json" not in receipt:
+                raise ValueError("failure observation is not covered by receipt")
+            failure = json.loads((directory / "failure.json").read_text())
         subjects[engine] = {
+            "failure": failure,
             "result": result,
             "provenance": provenance,
             "source_receipt_sha256": sha((directory / "receipt.json").read_bytes()),
@@ -175,6 +182,7 @@ def main(args):
         )
     report = {
         "protocol": protocol,
+        "analysis_source_sha256": sha(Path(__file__).read_bytes()),
         "instrument_commit": args.revision,
         "behavior_qualified_both": qualified,
         "timing_comparison_eligible": timing_eligible,
@@ -195,8 +203,12 @@ def main(args):
     ]
     for engine, subject in subjects.items():
         result = subject["result"]
+        failure = subject["failure"]
+        stopped = (
+            f" Stopped at {failure['phase']} ({failure['error']})." if failure else ""
+        )
         lines.append(
-            f"- {engine}: {result['status']}; {sum(c['passed'] for c in result['checks'])}/{len(result['checks'])} checks passed; fresh PDF frontend: {result['fresh_pdf_frontend']}."
+            f"- {engine}: {result['status']}; {sum(c['passed'] for c in result['checks'])}/{len(result['checks'])} recorded checks passed; fresh PDF frontend: {result['fresh_pdf_frontend']}.{stopped}"
         )
     lines += ["", "Code token lines (not development effort):", ""] + [
         f"- {key}: {value}" for key, value in counts.items()
