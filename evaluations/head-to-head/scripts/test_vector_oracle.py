@@ -163,10 +163,13 @@ class VectorOracleControls(unittest.TestCase):
             permits_reader = False
             inspections = 0
             changed = False
+            ending_error = False
             checkpoint_hash = 42
             checkpoint_generation = 7
 
             def inspection_witness(self, _):
+                if self.ending_error and self.inspections > 0:
+                    raise OSError("status unavailable")
                 return {
                     "policy_version": "b" * 64,
                     "epoch": int(self.changed and self.inspections > 0),
@@ -197,7 +200,14 @@ class VectorOracleControls(unittest.TestCase):
                 receipts if receipts is not None else [],
             )
 
-        self.assertTrue(validate(App()))
+        accepted_receipts = []
+        self.assertTrue(validate(App(), accepted_receipts))
+        self.assertEqual(accepted_receipts[-1]["kind"], "validation_attempt")
+        self.assertEqual(accepted_receipts[-1]["verification"], "accepted")
+        self.assertEqual(
+            accepted_receipts[-1]["before_witness"],
+            accepted_receipts[-1]["after_witness"],
+        )
         for name, setup in {
             "missing": lambda app: setattr(app, "returned", []),
             "duplicate": lambda app: setattr(app, "returned", [hit, hit]),
@@ -212,8 +222,16 @@ class VectorOracleControls(unittest.TestCase):
             with self.subTest(name=name):
                 app = App()
                 setup(app)
+                attempts = []
                 with self.assertRaises(VectorOracleError):
-                    validate(app)
+                    validate(app, attempts)
+                self.assertEqual(attempts[-1]["kind"], "validation_attempt")
+                self.assertEqual(attempts[-1]["verification"], "failed")
+                if name == "catalog-changed":
+                    self.assertNotEqual(
+                        attempts[-1]["before_witness"], attempts[-1]["after_witness"]
+                    )
+                    self.assertIn("catalog changed", attempts[-1]["failure"])
 
         receipts = []
         snapshot["vectors"][0]["values"][0] = 0.0
@@ -222,15 +240,23 @@ class VectorOracleControls(unittest.TestCase):
         self.assertEqual(receipts[0]["verification"], "failed")
         self.assertEqual(receipts[0]["snapshot"]["vectors"][0]["values"][0], 0.0)
         self.assertEqual(receipts[0]["expected_embedding"][0], 1.0)
+        app = App()
+        app.ending_error = True
+        failed_status = []
+        with self.assertRaisesRegex(VectorOracleError, "independent vector mismatch"):
+            validate(app, failed_status)
+        self.assertIn("independent vector mismatch", failed_status[-1]["failure"])
+        self.assertEqual(failed_status[-1]["after_witness_error"], "status unavailable")
         snapshot["vectors"][0]["values"][0] = 1.0
         app = App()
         app.deleted = snapshot
         receipts = []
         with self.assertRaisesRegex(VectorOracleError, "deleted document retained"):
             validate(app, receipts)
-        self.assertEqual(receipts[-1]["document_id"], "temporary")
+        self.assertEqual(receipts[-2]["document_id"], "temporary")
+        self.assertEqual(receipts[-2]["verification"], "failed")
+        self.assertEqual(receipts[-2]["snapshot"], snapshot)
         self.assertEqual(receipts[-1]["verification"], "failed")
-        self.assertEqual(receipts[-1]["snapshot"], snapshot)
 
 
 if __name__ == "__main__":

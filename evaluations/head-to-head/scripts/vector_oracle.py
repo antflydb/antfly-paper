@@ -136,7 +136,43 @@ def verify_snapshot(
 
 
 def validate_space(app, queries, index, model, sources, embed, receipts):
-    before = app.inspection_witness(index)
+    attempt = {
+        "kind": "validation_attempt",
+        "index": index,
+        "expected_model": model,
+        "verification": "pending",
+        "before_witness": None,
+        "after_witness": None,
+    }
+    try:
+        before = app.inspection_witness(index)
+        attempt["before_witness"] = before
+        _validate_space(app, queries, index, model, sources, embed, receipts, before)
+        attempt["after_witness"] = app.inspection_witness(index)
+        require(
+            before == attempt["after_witness"],
+            "catalog changed during vector inspection",
+        )
+    except Exception as exc:
+        attempt.update(verification="failed", failure=str(exc)[:4096])
+        # Preserve a final observation on earlier failures too, without masking
+        # the original rejection when the status endpoint itself is unavailable.
+        if attempt["before_witness"] is not None and attempt["after_witness"] is None:
+            try:
+                attempt["after_witness"] = app.inspection_witness(index)
+            except Exception as witness_error:
+                attempt["after_witness_error"] = str(witness_error)[:4096]
+        raise
+    else:
+        attempt["verification"] = "accepted"
+        return True
+    finally:
+        # Per-document acceptance remains a numeric/source fact; only this
+        # overall record certifies the stable catalog and permission checks.
+        receipts.append(attempt)
+
+
+def _validate_space(app, queries, index, model, sources, embed, receipts, before):
     policy = before["policy_version"]
     seen = set()
     recipe = None
@@ -207,11 +243,6 @@ def validate_space(app, queries, index, model, sources, embed, receipts):
             require("HTTP 403 " in str(exc), "inspection authorization response")
         else:
             raise VectorOracleError("ordinary reader can inspect raw vectors")
-    require(
-        before == app.inspection_witness(index),
-        "catalog changed during vector inspection",
-    )
-    return True
 
 
 def negative_controls(snapshot, source, embed):

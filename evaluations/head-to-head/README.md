@@ -214,7 +214,11 @@ evidence for B, still-serving A, and the newly built rollback A generation.
 Receipts are recorded before validation, with expected source/model/live
 checkpoint facts, serving rows, verification status and failure reason. When
 numeric comparison runs, its independent expected embedding is retained too.
-A failing deleted-document check also retains the unexpected snapshot.
+A failing deleted-document check also retains the unexpected snapshot. Every
+comparison appends an overall `validation_attempt` receipt with both catalog
+witnesses, acceptance or failure, and its reason. Per-document acceptance alone
+does not certify the full attempt. A failed ending status read is retained
+without hiding the original validation failure.
 The oracle deliberately rejects unexpected chunk counts rather than silently
 changing the authored fixture's acceptance rule. This is qualification evidence
 for the explicit fixture, not a performance or corpus-generalization claim.
