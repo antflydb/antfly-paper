@@ -1,0 +1,61 @@
+{
+  "status": "passed",
+  "checks": 14,
+  "negative_controls": 10,
+  "accepted_documents_by_space": {
+    "b1": 8,
+    "a0": 8,
+    "a2": 8
+  },
+  "stable_attempts": 3,
+  "max_squared_vector_error": 0.0,
+  "receipt_files_verified": 18,
+  "fresh_pdf_frontend": true,
+  "source_unchanged": true,
+  "subject": {
+    "name": "main-194b8cca0859",
+    "commit": "194b8cca085997a9be6585fabd3b4368af358bee",
+    "image": "sha256:2b0a777e3e33eb6520d22633568d3422dc117e26cb246ba466007340be2d5aa7",
+    "binary_sha256": "79e89ffed5b98e8f89b86ae490070c4e20a497303df5561c22445715aba3d15b",
+    "build_profile": "linux-arm64-gnu-release-overlay-v030",
+    "manifest_sha256": "386c1d72dab65e5b4c37b4730bbf3f471b220e2a47235be8cbbc29557c5fb28e"
+  },
+  "protocol": "document-main-v3",
+  "digests": {
+    "result.json": "c850ac7526c8d6e3ce5a244a3eaef6276ef8be6b20b9a9937b405d4253a77ec3",
+    "provenance.json": "18863d9c64864086743847eb7a4517dbfea7d53e9475a772a2595178f9f9a508",
+    "receipt.json": "6cfd572bc4bc994d2a92fb2355b514c43f4be19de6c0b788eae8b4c833169506",
+    "vector-inspections.json": "78b047e3599bb2bca4a4343fe3981842e9b1462f88e34ba372a05d3416883079",
+    "model-files.json": "e435fbcc0dac2178e7fb7bba8d7b3cbb0fe66b9fb1946217f8ea76c24f2f75dc"
+  },
+  "check_names": [
+    "native-and-scanned-routing",
+    "qualification-extracted-content",
+    "real-detector-span-control",
+    "permissioned-semantic-top1",
+    "protected-text-and-relevance",
+    "protected-embedding-model-boundary",
+    "protected-fulltext",
+    "committed-artifacts-survive-restart",
+    "held-update-converges-and-delete-persists",
+    "permission-restriction",
+    "migration-new-space-vectors",
+    "vector-oracle-negative-controls",
+    "migration-old-space-still-consistent",
+    "rollback-new-a-generation"
+  ],
+  "controls": {
+    "wrong-model": true,
+    "wrong-vector": true,
+    "missing-vector": true,
+    "unpublished": true,
+    "dirty-checkpoint": true,
+    "replay-debt": true,
+    "wrong-checkpoint-recipe": true,
+    "stale-policy": true,
+    "deleted-identity": true,
+    "stale-source": true
+  },
+  "instrument_commit": "53ae5c8b19416b39733b642598170430d031404d",
+  "scope": "Fresh-PDF Antfly lifecycle fixture, eight documents, one page/chunk per document, one shard; no comparative performance claim; excludes later #1714 optimization."
+}

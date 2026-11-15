@@ -1,11 +1,18 @@
 # Document application comparison
 
-Status: **matched application qualification blocked**. The main-derived
-candidate is subject to the upstream privacy-transition and recovery blockers
-[Antfly #1704](https://github.com/antflydb/antfly/issues/1704),
+Status: **Antfly candidate lifecycle qualification passed**. A fresh-PDF,
+real-model run passed all 14 checks, including migration/rollback stored-vector
+comparisons and ten rejected invalid controls. See the
+[frozen qualification receipt](qualifications/shard-checkpoint-53ae5c8.md).
+The exact subject predates the later #1714 readiness optimization. Matched
+current-instrument PostgreSQL qualification and comparative timing remain
+pending; no comparative performance claim is admitted.
+
+The earlier candidate blockers [Antfly #1704](https://github.com/antflydb/antfly/issues/1704),
 [#1705](https://github.com/antflydb/antfly/issues/1705), and
-[#1706](https://github.com/antflydb/antfly/issues/1706). Comparative timing is not
-admitted. The candidate build recipe and scope are in
+[#1706](https://github.com/antflydb/antfly/issues/1706) are resolved. Historical
+failures and their immutable receipts remain separate from this successful run.
+The candidate build recipe and scope are in
 [the native controls](../native-contracts/README.md); this is a distinct cohort
 from the released v0.3.0 observations.
 
