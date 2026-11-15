@@ -190,7 +190,7 @@ def run(out):
             return all(
                 ok("/db/v1/tables/spaces/indexes/" + name)
                 .get("status", {})
-                .get("coverage", {})
+                .get("readiness", {})
                 .get("complete")
                 for name in ("a0", "b1")
             )
