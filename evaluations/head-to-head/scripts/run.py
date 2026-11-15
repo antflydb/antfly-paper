@@ -151,10 +151,10 @@ def run(args):
         models = f"http://127.0.0.1:{owned.port(gateway, 8090)}"
         wait(lambda: healthy(models + "/health"))
 
-        def control(hold):
+        def control(hold, allow_input_sha256=()):
             return request(
                 models + "/control",
-                {"hold": hold},
+                {"hold": hold, "allow_input_sha256": sorted(allow_input_sha256)},
                 headers={"Authorization": "Bearer " + owned.token},
             )
 
@@ -227,6 +227,7 @@ def run(args):
             bool(detector_control["data"][0].get("entities")),
         )
         phase = "database-start"
+        validation_inputs = set()
         if args.engine == "antfly":
             owned.environment["ANTFLY_BOOTSTRAP_ADMIN_PASSWORD"] = owned.password
             config = out / "config.json"
@@ -279,7 +280,17 @@ def run(args):
                     return False
 
             wait(ant_ready)
+            validation_begin = len(audit())
             app = Antfly(url, owned.password)
+            # No source rows exist yet: these successful embedding calls are
+            # admission probes, learned from the subject rather than its text.
+            validation_inputs = {
+                row["input_sha256"]
+                for row in audit()[validation_begin:]
+                if row["task"] == "embed" and row.get("status") == 200
+            }
+            if not validation_inputs or None in validation_inputs:
+                raise RuntimeError("initial index admission probe was not observed")
         else:
             volume = owned.volume("database")
             database = owned.container(
@@ -463,9 +474,15 @@ def run(args):
             and any(h["id"] == "d000" for h in app.query("beta", vectors[0])["hits"]),
         )
         phase = "model-migration-during-writes"
-        control(True)
+        migration_begin = len(audit())
+        control(True, validation_inputs)
         app.generation("b1", MIGRATION_EMBEDDER)
-        wait(lambda: any(x["pending"] and x["task"] == "embed" for x in audit()))
+        wait(
+            lambda: any(
+                row["pending"] and row["hold_applied"]
+                for row in audit()[migration_begin:]
+            )
+        )
         app.write(
             "d000",
             {

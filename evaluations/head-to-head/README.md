@@ -159,3 +159,15 @@ Antfly [document](https://github.com/antflydb/antfly/blob/v0.3.0/docs/guides/ind
 [artifact](https://github.com/antflydb/antfly/blob/v0.3.0/docs/guides/artifact-indexes.mdx),
 [privacy schema](https://github.com/antflydb/antfly/blob/v0.3.0/specs/openapi/antfly/privacy.yaml),
 and [model-instance API](https://github.com/antflydb/antfly/blob/v0.3.0/specs/openapi/inference/api.yaml).
+
+## Migration fault injection
+
+Index creation validates the embedding provider before accepting a generation.
+The migration hold exempts only input digests observed in successful admission
+calls during initial index creation, before any source rows exist. These digests
+are learned from the subject and do not include model identity, so the second
+model can validate while document embeddings remain held. Other hold phases
+have no exemptions. The migration crash waits for an audited request with
+`hold_applied=true`, rather than treating any pending probe as backfill evidence.
+The audit records hashes and hold decisions, never input text. This changes the
+instrument; earlier frozen qualification receipts remain immutable.
