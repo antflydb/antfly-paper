@@ -20,13 +20,15 @@ from common import (
     request,
 )
 from traffic import drive, summarize
+from vector_oracle import negative_controls
+from vector_oracle import validate_space as validate_antfly_space
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 sys.path.append(str(ROOT / "evaluations/retrieval/scripts"))
 import runtime  # noqa: E402
 
-APPLICATION_PROTOCOL = "document-main-v2" if runtime.CANDIDATE else "document-v1"
+APPLICATION_PROTOCOL = "document-main-v3" if runtime.CANDIDATE else "document-v1"
 runtime.LABEL = "antfly-paper.application=" + APPLICATION_PROTOCOL
 
 
@@ -526,7 +528,35 @@ def run(args):
         wait(migration_ready)
         b_queries = embed([r["query"] for r in annotations], models, MIGRATION_EMBEDDER)
 
+        vector_receipts = []
+        source_ledger = {
+            row["id"]: {
+                "tenant": tenant_by_id[row["id"]],
+                "version": row["version"],
+                "page": row["page"],
+            }
+            for row in rows
+        }
+        source_ledger["d000"] = {
+            field: fifth[field] for field in ("tenant", "version", "page")
+        }
+
         def validate_space(name, model, queries):
+            if args.engine == "antfly":
+                try:
+                    return validate_antfly_space(
+                        app,
+                        queries,
+                        name,
+                        model,
+                        source_ledger,
+                        lambda text: embed([text], models, model)[0],
+                        vector_receipts,
+                    )
+                finally:
+                    (out / "vector-inspections.json").write_text(
+                        json.dumps(vector_receipts, indent=2) + "\n"
+                    )
             scored = 0
             for tenant in ("alpha", "beta"):
                 result = app.query(tenant, queries[0], name, include_vectors=True)
@@ -547,6 +577,18 @@ def run(args):
             "migration-new-space-vectors",
             validate_space("b1", MIGRATION_EMBEDDER, b_queries),
         )
+        if args.engine == "antfly":
+            accepted = vector_receipts[0]
+            controls = negative_controls(
+                accepted,
+                source_ledger[accepted["document_id"]],
+                lambda text: embed([text], models, MIGRATION_EMBEDDER)[0],
+            )
+            check(
+                "vector-oracle-negative-controls",
+                all(controls.values()),
+                controls=controls,
+            )
         check(
             "migration-old-space-still-consistent",
             validate_space("a0", EMBEDDER, vectors),
