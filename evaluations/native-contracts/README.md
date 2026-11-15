@@ -58,7 +58,16 @@ exit status, elapsed time, instrument commit and subject-manifest hash.
 
 ## Candidate build
 
-For candidate `18eefbbc53bb29341e9d25f1293e9ff8f9c2ca7a`, initialize recursive
+The initial candidate `18eefbbc53bb29341e9d25f1293e9ff8f9c2ca7a` fails the
+release-profile build: its compiled metadata adapter lacks `hasIndexAliases`
+and `validateTableIndexMutation`. [Antfly PR #1703](https://github.com/antflydb/antfly/pull/1703)
+adds the missing owner projections. The repair candidate is
+`4882823a16312d7b7ee84981ef183ebe2489f811`; it is main-derived and not yet a
+merged main or released observation. Its version flag is
+`-Dantfly-version=0.3.0-main.4882823a16`. Retain this source distinction in
+all result manifests.
+
+To reproduce the original build, initialize recursive
 submodules at the pinned source and use the repository's Zig 0.17.0 toolchain.
 The server-only build uses the release matrix's Linux ARM64 GNU settings:
 
