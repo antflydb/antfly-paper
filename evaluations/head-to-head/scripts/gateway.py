@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 lock = threading.Lock()
 calls = []
 held = False
+allowed_inputs = frozenset()
 release = threading.Event()
 release.set()
 
@@ -68,7 +69,7 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, {"calls": list(calls), "held": held})
 
     def do_POST(self):
-        global held
+        global held, allowed_inputs, release
         size = int(self.headers.get("Content-Length", 0))
         if not 0 < size <= 32 * 1024 * 1024:
             return self.reply(413, {})
@@ -79,9 +80,25 @@ class Handler(BaseHTTPRequestHandler):
                 "Bearer " + os.environ["PAPER_TOKEN"],
             ):
                 return self.reply(403, {})
+            allowed = body.get("allow_input_sha256", [])
+            if (
+                not isinstance(allowed, list)
+                or len(allowed) > 8
+                or any(
+                    not isinstance(value, str)
+                    or len(value) != 64
+                    or any(c not in "0123456789abcdef" for c in value)
+                    for value in allowed
+                )
+            ):
+                return self.reply(400, {"error": "invalid input digest allowlist"})
             with lock:
+                allowed_inputs = frozenset(allowed)
+                if bool(body["hold"]) and not held:
+                    release = threading.Event()
                 held = bool(body["hold"])
-                release.clear() if held else release.set()
+                if not held:
+                    release.set()
             return self.reply(200, {"held": held})
         path = self.path
         if path in {"/embed", "/extract", "/read"}:
@@ -95,18 +112,31 @@ class Handler(BaseHTTPRequestHandler):
         }:
             return self.reply(404, {})
         payload = json.dumps(body, sort_keys=True).encode()
+        inputs = body.get("input", body.get("texts"))
+        input_digest = (
+            hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
+            if inputs is not None
+            else None
+        )
         with lock:
+            wait = (
+                held and path == "/ai/v1/embed" and input_digest not in allowed_inputs
+            )
+            wait_event = release if wait else None
             row = {
                 "task": path.rsplit("/", 1)[-1],
                 "request_sha256": hashlib.sha256(payload).hexdigest(),
+                "input_sha256": input_digest,
+                "hold_applied": wait,
                 "admitted": time.time(),
                 "pending": True,
                 "original_email_present": "@"
                 in json.dumps(body.get("input", body.get("texts", []))),
             }
             calls.append(row)
-            wait = held and row["task"] == "embed"
-        if wait and not release.wait(120):
+        if wait_event is not None and not wait_event.wait(120):
+            with lock:
+                row.update(pending=False, completed=time.time(), status=504)
             return self.reply(504, {"error": "bounded hold expired"})
         try:
             value, headers = self.forward(path, body)
