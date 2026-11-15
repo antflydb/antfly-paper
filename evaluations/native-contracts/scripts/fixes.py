@@ -51,7 +51,7 @@ def worker():
             {"inserts": docs, "sync_level": "full_index"},
             timeout=120,
         )
-        if status != 200 or ack.get("status") != "committed":
+        if status not in (200, 201) or ack.get("status") != "committed":
             raise RuntimeError(
                 f"ingestion rejected at {done}: HTTP {status} {str(ack)[:500]}"
             )
