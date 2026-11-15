@@ -206,6 +206,7 @@ def run(out):
         check(
             "alias-initial-model",
             top(initial) == "red" and initial.get("resolved_indexes") == ["a0"],
+            response=initial,
         )
         control("a", {"embedding_hold": True})
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
