@@ -1,6 +1,7 @@
 # Document application comparison
 
-Status: **matched application qualification blocked**. With frozen instrument
+Status: **pinned-main requalification pending**. The historical released-image
+qualification was blocked; merged fixes have not yet been credited as passing. With frozen instrument
 `622fb9905a77f74df4b56423de01af50bed07a84`, PostgreSQL completed 13 qualification
 checks. Antfly passed the four preliminary checks, then timed out during
 extractor-backed privacy activation; see [Antfly #1682](https://github.com/antflydb/antfly/issues/1682).
@@ -10,7 +11,9 @@ extracted fixture text. Matched serving/backfill cost trials have **not run**.
 See each immutable result's checks, source hashes and not-run list.
 
 This implements one controlled permissioned document-search application on
-Antfly v0.3.0 and PostgreSQL/pgvector with a custom durable outbox. PostgreSQL
+Antfly and PostgreSQL/pgvector with a custom durable outbox. Historical runs
+use v0.3.0; candidate runs require the explicit immutable subject manifest
+described in [native-contracts](../native-contracts/README.md). PostgreSQL
 is designed to succeed: source transactions enqueue durable work; publication
 checks current source and policy generations; source deletion cascades; worker
 restart rolls back uncommitted jobs; model calls can repeat before commit;
@@ -25,8 +28,9 @@ and four scanned, with text, email, permission, page and relevance annotations
 written before model execution. Native text uses PDFium; pages without usable
 text use Florence-2. Both architectures run this **same synchronous PDF
 frontend before source acknowledgement**, then persist the extracted page text.
-The lifecycle correction schedule currently changes extracted page-text
-records; it does not re-exercise replacement-PDF extraction. Each page is short enough
+The historical `document-v1` correction schedule changes extracted page-text
+records. The candidate `document-main-v2` schedule extracts fresh replacement
+PDFs for source corrections. Each page is short enough
 for one chunk; this is not a multi-page or chunk-boundary quality study.
 
 Antfly manages the extracted text's privacy/embedding/full-text lifecycle.
@@ -44,7 +48,7 @@ The acceptance check rejects any `@` in protected embedding inputs or returned
 text for this fixture. This narrow canary check is not a general PII detector.
 Character similarity is a qualification diagnostic, not a broad OCR score.
 
-Models are the same native released inference service on both architectures:
+Models use the same pinned native inference service on both architectures:
 
 - Embedding A: `BAAI/bge-small-en-v1.5`, 384 dimensions.
 - Embedding B: `BAAI/bge-small-en`, upstream revision

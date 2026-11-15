@@ -30,11 +30,16 @@ CANARY = "lifecycle-canary@example.invalid"
 def run(out):
     owned = runtime.Owned(out)
     owned.output.mkdir(parents=True, exist_ok=False)
-    runtime.docker(["network", "create", "--label", runtime.LABEL, owned.network])
+    runtime.create_network(owned.network, internal=False)
     checks = []
     phase = "setup"
     success = False
-    paths = [*HERE.glob("*.py"), *core.HERE.glob("*.py"), Path(runtime.__file__)]
+    paths = [
+        *HERE.glob("*.py"),
+        *core.HERE.glob("*.py"),
+        Path(runtime.__file__),
+        runtime.SUBJECT_IMPLEMENTATION,
+    ]
     hashes = {str(p.relative_to(ROOT)): runtime.sha(p) for p in paths}
 
     def check(name, passed, **detail):
@@ -559,6 +564,7 @@ def run(out):
             ],
         }
         provenance = {
+            "antfly_subject": runtime.subject_provenance(),
             "subject_image": runtime.ANTFLY_IMAGE,
             "client_image": runtime.get_client_image(),
             "scripts_sha256": hashes,

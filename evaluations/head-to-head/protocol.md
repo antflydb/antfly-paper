@@ -60,3 +60,34 @@ acceptance checks. Quantitative storage/recomputation and typed-decision claims
 need matched-quality controls including original source/model bytes or the same
 batched local classifier. Synthetic lifecycle fixtures cannot substitute for
 real-model quality or throughput. Missing results remain not-run.
+
+## Main candidate condition: document-main-v2
+
+A pinned-main manifest selects `document-main-v2`; historical `document-v1`
+results retain their original interpretation. Both application architectures use
+the same candidate native inference image and the same hashed model bytes.
+Fresh trials extract all eight PDFs and replacement PDFs at source versions 2,
+3 and 5. Version 4 changes permissions over the preceding source. Controlled
+scaling copies those authored pages and does not constitute a natural-corpus
+quality result. Reusing extracted text is diagnostic only.
+
+The source-acceptance path uses asynchronous writes in both architectures;
+ready-state observations and explicit `full_index` barriers are separate. A
+held deletion uses source-write acknowledgement, permitting the held-work
+experiment to proceed. Standalone native-contract controls measure the new
+`commit_requires: direct_enrichments` and atomic alias API; this application's
+explicit named-generation queries do not themselves establish alias cutover.
+
+Record time from process kill to recovered useful behavior, injected actions,
+and inference calls. These are harness recovery observations, not measured
+human operator effort. For backfill, record actual ready-state completion time
+separately from the fixed serving window and its combined wall time. Retain
+all arrivals, errors and unavailable results before calculating latency.
+
+Qualification must pass on both architectures before comparative timing. Run
+three fresh trials per architecture in alternating order, with 128 copies of
+each of the eight fixture pages (1,024 pages), 60 seconds serving alone and 60
+seconds serving during backfill at 2 offered queries/second. Preserve per-service
+CPU/memory limits and shared-inference placement across both architectures;
+record those limits and the client image ID in every trial. Report failed
+qualification separately and do not pool main-candidate results with v0.3.0.

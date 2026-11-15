@@ -123,12 +123,36 @@ def materialize(out):
         else:
             path.write_bytes(raw)
         row["pdf_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    corrections = []
+    for version, text, tenant in [
+        (
+            2,
+            "Orchard maintenance now requires pruning apple trees in late winter, before spring growth.",
+            "alpha",
+        ),
+        (3, "Prune apple trees in late winter. Corrected orchard guidance.", "alpha"),
+        (5, "Prune apple trees in late winter. Final orchard guidance.", "beta"),
+    ]:
+        name = f"d000-v{version}.pdf"
+        raw = native_pdf(text)
+        (out / name).write_bytes(raw)
+        corrections.append(
+            {
+                "id": "d000",
+                "version": version,
+                "tenant": tenant,
+                "pdf_file": name,
+                "pdf_sha256": hashlib.sha256(raw).hexdigest(),
+                "body": text,
+            }
+        )
     (out / "annotations.json").write_text(
         json.dumps(
             {
                 "license": "Apache-2.0",
                 "scope": "authored controlled qualification fixture",
                 "documents": rows,
+                "corrections": corrections,
             },
             indent=2,
         )
