@@ -110,3 +110,8 @@ trials. Eligible reports give medians and ranges of per-trial p50/p95 and
 backfill completion, retaining availability/error/quality counts. Missing or
 failed qualification/trials suppress comparative timing. Requests from the
 three trials are not pooled into a single latency sample.
+
+The serving/backfill windows follow the same qualification sequence in each
+fresh deployment. Model loading during that sequence may populate inference
+caches before the measured new-index backfill. These windows measure behavior
+under that normal cache state; they are not a separate cold-model-start study.
