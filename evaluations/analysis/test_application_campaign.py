@@ -89,7 +89,10 @@ class CampaignEligibility(unittest.TestCase):
         self.assertEqual(result["summaries"]["antfly"]["serving-only"]["trials"], 3)
 
     def test_failed_qualification_cannot_be_overridden_by_manifest(self):
-        self.assertFalse(self.run_campaign(qualified=False)["comparison_eligible"])
+        result = self.run_campaign(qualified=False)
+        self.assertFalse(result["comparison_eligible"])
+        self.assertFalse(result["summaries"])
+        self.assertEqual(len(result["observed_outcomes"]["antfly"]), 3)
 
     def test_legacy_campaign_still_requires_component_gates(self):
         result = self.run_campaign(protocol="legacy")

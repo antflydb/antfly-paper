@@ -70,7 +70,7 @@ def main(args):
         if reference is not None and identity != reference:
             raise ValueError("trial configurations differ; do not aggregate")
         reference = identity
-        pairs.append(result)
+        pairs.append({"trial": trial, **result})
     required = {
         "native-contracts",
         "descriptors",
@@ -101,6 +101,38 @@ def main(args):
         "runs": campaign["runs"],
         "aggregation": "median and range of three independent trial summaries; requests are not pooled",
         "summaries": {},
+    }
+    # Availability and completed work remain evidence when latency is inadmissible.
+    report["observed_outcomes"] = {
+        engine: [
+            {
+                "pair": pair["trial"],
+                "status": pair["subjects"][engine]["result"].get("status"),
+                "pair_timing_eligible": pair["timing_comparison_eligible"],
+                "phases": [
+                    {
+                        "name": phase["name"],
+                        **{
+                            key: phase["summary"][key]
+                            for key in (
+                                "arrivals",
+                                "errors",
+                                "unavailable",
+                                "unauthorized",
+                                "email_like_outputs",
+                                "relevant_top1",
+                            )
+                        },
+                        "completed_target_documents": phase.get(
+                            "completed_target_documents"
+                        ),
+                    }
+                    for phase in pair["subjects"][engine]["result"]["phases"]
+                ],
+            }
+            for pair in pairs
+        ]
+        for engine in ("antfly", "postgres")
     }
     if eligible:
         for engine in ("antfly", "postgres"):
