@@ -15,6 +15,7 @@ def main(args):
         raise ValueError("campaign instrument commit mismatch")
     args.out.mkdir(parents=True, exist_ok=False)
     qualification_verified = True
+    qualification_subjects = None
     if campaign.get("protocol") == "paper-application-pairs-v1":
         qualification = args.out / "qualification"
         paired.main(
@@ -27,6 +28,7 @@ def main(args):
         )
         qualification_result = json.loads((qualification / "result.json").read_text())
         qualification_verified = qualification_result["behavior_qualified_both"]
+        qualification_subjects = qualification_result["subjects"]
     pairs = []
     missing = []
     reference = None
@@ -56,6 +58,15 @@ def main(args):
             }
             for e in paths
         }
+        if qualification_subjects is not None:
+            for engine, fields in identity.items():
+                baseline = qualification_subjects[engine]["provenance"]
+                if any(
+                    value != baseline.get(key)
+                    for key, value in fields.items()
+                    if key != "arguments"
+                ):
+                    raise ValueError("timing and qualification configurations differ")
         if reference is not None and identity != reference:
             raise ValueError("trial configurations differ; do not aggregate")
         reference = identity
