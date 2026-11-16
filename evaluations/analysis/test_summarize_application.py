@@ -16,6 +16,13 @@ sys.path.insert(0, str(SCRIPTS))
 from test_vector_oracle import fixture  # noqa: E402
 
 
+class CountingBoundary(unittest.TestCase):
+    def test_inspection_methods_are_separate_from_application_code(self):
+        source = "class Adapter:\n    def serve(self):\n        return 1\n    def inspect(self):\n        return 2\n"
+        self.assertEqual(analysis.code_lines(source, "Adapter"), 5)
+        self.assertEqual(analysis.code_lines(source, "Adapter", ("inspect",)), 3)
+
+
 class RetainedOracleEvidence(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

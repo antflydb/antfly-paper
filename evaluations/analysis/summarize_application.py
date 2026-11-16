@@ -19,7 +19,7 @@ def committed(revision, path):
     return subprocess.check_output(["git", "show", f"{revision}:{path}"])
 
 
-def code_lines(source, selected_class=None):
+def code_lines(source, selected_class=None, excluded_methods=()):
     tree = ast.parse(source)
     selected = (
         next(
@@ -35,6 +35,14 @@ def code_lines(source, selected_class=None):
     )
     if selected_class and selected is None:
         raise ValueError("counting class missing")
+    excluded = set()
+    if selected:
+        for node in selected.body:
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name in excluded_methods
+            ):
+                excluded.update(range(node.lineno, node.end_lineno + 1))
     docstrings = set()
     for node in ast.walk(tree):
         body = getattr(node, "body", None)
@@ -60,8 +68,10 @@ def code_lines(source, selected_class=None):
         if token.type in ignored:
             continue
         for line in range(token.start[0], token.end[0] + 1):
-            if line in docstrings or (
-                selected and not selected.lineno <= line <= selected.end_lineno
+            if (
+                line in docstrings
+                or line in excluded
+                or (selected and not selected.lineno <= line <= selected.end_lineno)
             ):
                 continue
             lines.add(line)
@@ -265,7 +275,9 @@ def main(args):
             for path in ("common.py", "frontend.py")
         ),
         "antfly_application_adapter": code_lines(
-            committed(args.revision, prefix + "adapters.py").decode(), "Antfly"
+            committed(args.revision, prefix + "adapters.py").decode(),
+            "Antfly",
+            excluded_methods=("inspection_witness", "inspect_vectors"),
         ),
         "postgres_application_adapter": code_lines(
             committed(args.revision, prefix + "adapters.py").decode(), "Postgres"
@@ -274,6 +286,10 @@ def main(args):
             committed(args.revision, prefix + "pipeline.py").decode()
         ),
     }
+    counts["antfly_administrator_inspection_instruments"] = (
+        code_lines(committed(args.revision, prefix + "adapters.py").decode(), "Antfly")
+        - counts["antfly_application_adapter"]
+    )
     qualified = all(
         s["result"]["status"] == "completed"
         and s["result"]["checks"]
@@ -320,7 +336,7 @@ def main(args):
         "timing_comparison_eligible": timing_eligible,
         "subjects": subjects,
         "code_lines": counts,
-        "counting": "physical lines containing Python code tokens, excluding comments/docstrings; engine code, generated code and measurement instruments excluded; LOC is not development effort",
+        "counting": "physical lines containing Python code tokens, excluding comments/docstrings; engine and generated code excluded; administrator inspection instruments listed separately from application code; LOC is not development effort",
         "operator_time": "not measured; deliberate injected restarts are not manual repair effort",
     }
     args.out.mkdir(parents=True, exist_ok=False)

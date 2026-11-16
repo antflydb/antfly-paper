@@ -170,6 +170,11 @@ timing admission.
 
 ## Counting and limitations
 
+Administrator-only `inspection_witness` and `inspect_vectors` methods are
+measurement instruments. List their token lines separately from the Antfly
+application adapter; adding a stronger acceptance oracle must not appear as
+additional production application code.
+
 Count production services and deployment settings separately from custom code.
 `common.py`/`frontend.py` belong to both applications. `adapters.Antfly` is Antfly
 application configuration/access code; `adapters.Postgres` plus `pipeline.py`
