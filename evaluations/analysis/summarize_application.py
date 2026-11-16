@@ -154,6 +154,7 @@ def verify_v3_oracle(directory, result, revision):
     }
     seen = {name: set() for name in witnesses}
     maximum = 0.0
+    control_reference = None
     for record in records:
         if record.get("kind") == "validation_attempt":
             continue
@@ -189,6 +190,8 @@ def verify_v3_oracle(directory, result, revision):
         observed = record["snapshot"]["vectors"][0]["values"]
         maximum = max(maximum, sum((x - y) ** 2 for x, y in zip(observed, expected)))
         seen[index].add(identity)
+        if index == "b1" and control_reference is None:
+            control_reference = record
     if any(ids != {f"d{i:03d}" for i in range(8)} for ids in seen.values()):
         raise ValueError("incomplete fixture document set")
     controls = next(
@@ -210,6 +213,13 @@ def verify_v3_oracle(directory, result, revision):
         v is True for v in controls.values()
     ):
         raise ValueError("negative vector controls missing or failed")
+    replayed = oracle.negative_controls(
+        control_reference["snapshot"],
+        control_reference["expected_source"],
+        lambda _: control_reference["expected_embedding"],
+    )
+    if replayed != controls:
+        raise ValueError("negative control replay differs from recorded results")
     return {"accepted_vectors": 24, "stable_spaces": 3, "max_squared_error": maximum}
 
 
