@@ -190,7 +190,7 @@ def main(args):
         lines += [
             "Observed request outcomes; latency admission remains separate.",
             "",
-            "| Pair | Architecture | Phase | Unavailable / arrivals | Errors | Relevant top-1 | Backfill documents |",
+            "| Pair | Architecture | Phase | Unavailable / arrivals | Driver errors | Relevant top-1 | Backfill documents |",
             "| --- | --- | --- | --- | --- | --- | --- |",
         ]
         for engine, trials in report["observed_outcomes"].items():
