@@ -14,6 +14,19 @@ def main(args):
     if campaign["source_commit"] != args.revision:
         raise ValueError("campaign instrument commit mismatch")
     args.out.mkdir(parents=True, exist_ok=False)
+    qualification_verified = True
+    if campaign.get("protocol") == "paper-application-pairs-v1":
+        qualification = args.out / "qualification"
+        paired.main(
+            SimpleNamespace(
+                antfly=args.campaign / "qualification-antfly",
+                postgres=args.campaign / "qualification-postgres",
+                revision=args.revision,
+                out=qualification,
+            )
+        )
+        qualification_result = json.loads((qualification / "result.json").read_text())
+        qualification_verified = qualification_result["behavior_qualified_both"]
     pairs = []
     missing = []
     reference = None
@@ -55,9 +68,12 @@ def main(args):
         "qualification-antfly",
         "qualification-postgres",
     }
+    if campaign.get("protocol") == "paper-application-pairs-v1":
+        required = {"qualification-antfly", "qualification-postgres"}
     passed = {r["name"] for r in campaign["runs"] if r["passed"]}
     eligible = (
-        not missing
+        qualification_verified
+        and not missing
         and len(pairs) == 3
         and required <= passed
         and all(p["timing_comparison_eligible"] for p in pairs)
@@ -70,6 +86,7 @@ def main(args):
         "comparison_eligible": eligible,
         "missing_paired_trials": missing,
         "qualification_gates_not_passed": sorted(required - passed),
+        "qualification_scope": campaign.get("scope", "full candidate campaign"),
         "runs": campaign["runs"],
         "aggregation": "median and range of three independent trial summaries; requests are not pooled",
         "summaries": {},

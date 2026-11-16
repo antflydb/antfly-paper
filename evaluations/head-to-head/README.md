@@ -154,6 +154,20 @@ are 7 GiB with a 3 GiB scratch budget. These are configured caps, **not measured
 memory footprints**. Explicit nofile=65536:524288 on database/application
 containers is a declared workaround, not a claim that the FD issue is fixed.
 
+The analysis scripts also accept `document-main-v3` results. The pair collector
+verifies recorded checksums and replays the frozen independent vector oracle
+against retained persisted values and independent expected vectors; it does not
+run inference again. It requires all three stable checkpoint witnesses, the
+complete eight-document set in each space, and all ten named negative controls.
+
+An application-only campaign may declare `paper-application-pairs-v1`. Its
+collector rechecks both fresh qualification results before admitting three
+matched timing pairs. This profile establishes application evidence only; it
+does not substitute for native-runtime, descriptor, or component benchmarks.
+Legacy full campaigns retain their existing component gates. A missing pair,
+failed lifecycle, request error, or incomplete backfill prevents comparative
+timing admission.
+
 ## Counting and limitations
 
 Count production services and deployment settings separately from custom code.
