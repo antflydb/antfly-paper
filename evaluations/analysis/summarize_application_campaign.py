@@ -186,6 +186,24 @@ def main(args):
         f"Completed paired timing trials: {len(pairs)}/3. The protocol plans three independent trials per architecture at fixed offered load and resource caps. Eligible medians and ranges summarize trial statistics, not pooled requests.",
         "",
     ]
+    if pairs:
+        lines += [
+            "Observed request outcomes; latency admission remains separate.",
+            "",
+            "| Pair | Architecture | Phase | Unavailable / arrivals | Errors | Relevant top-1 | Backfill documents |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for engine, trials in report["observed_outcomes"].items():
+            for trial in trials:
+                for phase in trial["phases"]:
+                    count = phase["completed_target_documents"]
+                    lines.append(
+                        f"| {trial['pair']} | {engine} | {phase['name']} | "
+                        f"{phase['unavailable']} / {phase['arrivals']} | "
+                        f"{phase['errors']} | {phase['relevant_top1']} | "
+                        f"{count if count is not None else '—'} |"
+                    )
+        lines.append("")
     if eligible:
         lines += [
             "| Architecture | Phase | p50 ms, median (range) | p95 ms, median (range) | Errors / arrivals |",
