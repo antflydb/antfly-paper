@@ -5,8 +5,12 @@ real-model run passed all 14 checks, including migration/rollback stored-vector
 comparisons and ten rejected invalid controls. See the
 [frozen qualification receipt](qualifications/shard-checkpoint-53ae5c8.md).
 The exact subject predates the later #1714 readiness optimization. Matched
-current-instrument PostgreSQL qualification and comparative timing remain
-pending; no comparative performance claim is admitted.
+frozen-v3 qualification and three alternating timing pairs have subsequently
+been executed. Comparative performance is not admitted: queries to the old A
+index become unavailable while the new B index backfills; see
+[Antfly #1716](https://github.com/antflydb/antfly/issues/1716). The lifecycle
+qualification and this availability finding are separate results. These runs
+do not establish the behavior of the later #1714 build.
 
 The earlier candidate blockers [Antfly #1704](https://github.com/antflydb/antfly/issues/1704),
 [#1705](https://github.com/antflydb/antfly/issues/1705), and
