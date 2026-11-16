@@ -5,8 +5,12 @@ real-model run passed all 14 checks, including migration/rollback stored-vector
 comparisons and ten rejected invalid controls. See the
 [frozen qualification receipt](qualifications/shard-checkpoint-53ae5c8.md).
 The exact subject predates the later #1714 readiness optimization. Matched
-current-instrument PostgreSQL qualification and comparative timing remain
-pending; no comparative performance claim is admitted.
+frozen-v3 qualification and three alternating timing pairs have subsequently
+been executed. Comparative performance is not admitted: queries to the old A
+index become unavailable while the new B index backfills; see
+[Antfly #1716](https://github.com/antflydb/antfly/issues/1716). The lifecycle
+qualification and this availability finding are separate results. These runs
+do not establish the behavior of the later #1714 build.
 
 The earlier candidate blockers [Antfly #1704](https://github.com/antflydb/antfly/issues/1704),
 [#1705](https://github.com/antflydb/antfly/issues/1705), and
@@ -154,7 +158,26 @@ are 7 GiB with a 3 GiB scratch budget. These are configured caps, **not measured
 memory footprints**. Explicit nofile=65536:524288 on database/application
 containers is a declared workaround, not a claim that the FD issue is fixed.
 
+The analysis scripts also accept `document-main-v3` results. The pair collector
+verifies recorded checksums and replays the frozen independent vector oracle
+against retained persisted values and independent expected vectors; it does not
+run inference again. It requires all three stable checkpoint witnesses, the
+complete eight-document set in each space, and all ten named negative controls.
+
+An application-only campaign may declare `paper-application-pairs-v1`. Its
+collector rechecks both fresh qualification results before admitting three
+matched timing pairs. This profile establishes application evidence only; it
+does not substitute for native-runtime, descriptor, or component benchmarks.
+Legacy full campaigns retain their existing component gates. A missing pair,
+failed lifecycle, request error, or incomplete backfill prevents comparative
+timing admission.
+
 ## Counting and limitations
+
+Administrator-only `inspection_witness` and `inspect_vectors` methods are
+measurement instruments. List their token lines separately from the Antfly
+application adapter; adding a stronger acceptance oracle must not appear as
+additional production application code.
 
 Count production services and deployment settings separately from custom code.
 `common.py`/`frontend.py` belong to both applications. `adapters.Antfly` is Antfly

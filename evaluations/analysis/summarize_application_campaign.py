@@ -14,6 +14,21 @@ def main(args):
     if campaign["source_commit"] != args.revision:
         raise ValueError("campaign instrument commit mismatch")
     args.out.mkdir(parents=True, exist_ok=False)
+    qualification_verified = True
+    qualification_subjects = None
+    if campaign.get("protocol") == "paper-application-pairs-v1":
+        qualification = args.out / "qualification"
+        paired.main(
+            SimpleNamespace(
+                antfly=args.campaign / "qualification-antfly",
+                postgres=args.campaign / "qualification-postgres",
+                revision=args.revision,
+                out=qualification,
+            )
+        )
+        qualification_result = json.loads((qualification / "result.json").read_text())
+        qualification_verified = qualification_result["behavior_qualified_both"]
+        qualification_subjects = qualification_result["subjects"]
     pairs = []
     missing = []
     reference = None
@@ -43,10 +58,19 @@ def main(args):
             }
             for e in paths
         }
+        if qualification_subjects is not None:
+            for engine, fields in identity.items():
+                baseline = qualification_subjects[engine]["provenance"]
+                if any(
+                    value != baseline.get(key)
+                    for key, value in fields.items()
+                    if key != "arguments"
+                ):
+                    raise ValueError("timing and qualification configurations differ")
         if reference is not None and identity != reference:
             raise ValueError("trial configurations differ; do not aggregate")
         reference = identity
-        pairs.append(result)
+        pairs.append({"trial": trial, **result})
     required = {
         "native-contracts",
         "descriptors",
@@ -55,9 +79,12 @@ def main(args):
         "qualification-antfly",
         "qualification-postgres",
     }
+    if campaign.get("protocol") == "paper-application-pairs-v1":
+        required = {"qualification-antfly", "qualification-postgres"}
     passed = {r["name"] for r in campaign["runs"] if r["passed"]}
     eligible = (
-        not missing
+        qualification_verified
+        and not missing
         and len(pairs) == 3
         and required <= passed
         and all(p["timing_comparison_eligible"] for p in pairs)
@@ -70,9 +97,42 @@ def main(args):
         "comparison_eligible": eligible,
         "missing_paired_trials": missing,
         "qualification_gates_not_passed": sorted(required - passed),
+        "qualification_scope": campaign.get("scope", "full candidate campaign"),
         "runs": campaign["runs"],
         "aggregation": "median and range of three independent trial summaries; requests are not pooled",
         "summaries": {},
+    }
+    # Availability and completed work remain evidence when latency is inadmissible.
+    report["observed_outcomes"] = {
+        engine: [
+            {
+                "pair": pair["trial"],
+                "status": pair["subjects"][engine]["result"].get("status"),
+                "pair_timing_eligible": pair["timing_comparison_eligible"],
+                "phases": [
+                    {
+                        "name": phase["name"],
+                        **{
+                            key: phase["summary"][key]
+                            for key in (
+                                "arrivals",
+                                "errors",
+                                "unavailable",
+                                "unauthorized",
+                                "email_like_outputs",
+                                "relevant_top1",
+                            )
+                        },
+                        "completed_target_documents": phase.get(
+                            "completed_target_documents"
+                        ),
+                    }
+                    for phase in pair["subjects"][engine]["result"]["phases"]
+                ],
+            }
+            for pair in pairs
+        ]
+        for engine in ("antfly", "postgres")
     }
     if eligible:
         for engine in ("antfly", "postgres"):
@@ -126,6 +186,24 @@ def main(args):
         f"Completed paired timing trials: {len(pairs)}/3. The protocol plans three independent trials per architecture at fixed offered load and resource caps. Eligible medians and ranges summarize trial statistics, not pooled requests.",
         "",
     ]
+    if pairs:
+        lines += [
+            "Observed request outcomes; latency admission remains separate.",
+            "",
+            "| Pair | Architecture | Phase | Unavailable / arrivals | Driver errors | Relevant top-1 | Backfill documents |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for engine, trials in report["observed_outcomes"].items():
+            for trial in trials:
+                for phase in trial["phases"]:
+                    count = phase["completed_target_documents"]
+                    lines.append(
+                        f"| {trial['pair']} | {engine} | {phase['name']} | "
+                        f"{phase['unavailable']} / {phase['arrivals']} | "
+                        f"{phase['errors']} | {phase['relevant_top1']} | "
+                        f"{count if count is not None else '—'} |"
+                    )
+        lines.append("")
     if eligible:
         lines += [
             "| Architecture | Phase | p50 ms, median (range) | p95 ms, median (range) | Errors / arrivals |",
