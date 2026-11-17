@@ -93,3 +93,14 @@ released runtime libraries and replaces the executable, assets and notices.
 It is an experimental CPU-only subject, not a newly released image or evidence
 about GPU behavior. Record the resulting immutable image ID and executable
 checksum; transfer that same image to comparison hosts rather than rebuilding.
+
+## Official release images without revision labels
+
+The official v0.3.1 image omits the optional OCI revision label. For an
+`official-release-vX.Y.Z-linux-arm64-gnu` subject profile, pin the official
+`ghcr.io/antflydb/antfly@sha256:...` image and independently verify its executable
+against the publisher's checksum-verified GNU release archive. Retain the
+publisher metadata linking that archive to the source commit beside the subject
+manifest. An absent label is permitted only for this explicit release profile;
+a contradictory label, another registry, or mismatched executable still fails.
+Main-derived custom images continue to require the exact revision label.

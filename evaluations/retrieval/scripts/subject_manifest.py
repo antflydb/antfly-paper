@@ -40,14 +40,19 @@ def load_subject(path, protocol, requested_tag=None):
 
 
 @lru_cache(maxsize=None)
-def verify_image(image, commit, binary_sha256, docker):
+def verify_image(image, commit, binary_sha256, docker, allow_unlabeled_release=False):
     value = json.loads(docker(["image", "inspect", image]))[0]
-    if (
-        value.get("Config", {})
-        .get("Labels", {})
-        .get("org.opencontainers.image.revision")
-        != commit
-    ):
+    revision = value.get("Config", {}).get("Labels", {}).get("org.opencontainers.image.revision")
+    # Official release images can omit the optional OCI revision label. Their
+    # caller binds the source through the publisher's checksum-verified release
+    # archive. This exception never admits a contradictory label, another
+    # registry, mutable references, or different executable bytes.
+    unlabeled_release = (
+        revision is None
+        and allow_unlabeled_release
+        and re.fullmatch(r"ghcr\.io/antflydb/antfly@sha256:[0-9a-f]{64}", image)
+    )
+    if revision != commit and not unlabeled_release:
         raise ValueError("candidate image source label does not match pinned commit")
     actual = docker(
         [
