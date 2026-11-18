@@ -1,8 +1,10 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 from annotate import assertions, sample
+from compare import observations
 from corpus import chunk_rows, publisher_pages
 from evidence import citations, fuse, score_assertions, score_pages
 from miniature import build
@@ -34,6 +36,17 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(score_assertions(support, [])["missing"], [tuple(support[0])])
         with self.assertRaises(ValueError):
             assertions({}, [key])
+
+    def test_below_cutoff_candidate_leak(self):
+        engine = Mock()
+        engine.search.return_value = [
+            ("ok", "a.pdf#page=1"),
+            ("hidden", "b.pdf#page=1"),
+        ]
+        with self.assertRaisesRegex(ValueError, "ineligible candidate"):
+            observations(
+                engine, {"id": "q", "a": [1, 0]}, "a", "lexical", 10, 1, {"a.pdf"}
+            )
 
     def test_physical_pages_and_stream(self):
         payload = {

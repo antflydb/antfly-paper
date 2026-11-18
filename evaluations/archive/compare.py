@@ -15,11 +15,17 @@ from engines import Antfly, Lance, OpenSearch, Pg, Vespa
 from evidence import fuse, score_pages
 
 
-def observations(engine, query, gen, mode, depth, limit):
+def observations(engine, query, gen, mode, depth, limit, eligible=None):
     channels = ("lexical", "dense") if mode == "hybrid" else (mode,)
     pages, ranks = {}, []
     for channel in channels:
         hits = engine.search(query, query[gen], channel, depth)
+        if eligible is not None and any(
+            page.rsplit("#page=", 1)[0] not in eligible for _, page in hits
+        ):
+            raise ValueError(
+                f"{channel} returned an ineligible candidate for {query['id']}"
+            )
         pages.update(hits)
         ranks.append([key for key, _ in hits])
     chunks = fuse(ranks, depth * len(channels))
@@ -99,7 +105,15 @@ def replay(engine, gen, queries, args, phase, gold):
         rankings, times = {}, []
         for q in selected:
             start = time.monotonic()
-            rankings[q["id"]] = observations(engine, q, gen, mode, args.depth, args.k)
+            rankings[q["id"]] = observations(
+                engine,
+                q,
+                gen,
+                mode,
+                args.depth,
+                args.k,
+                set(gold[q["id"]]["eligible"]) if phase != "original" else None,
+            )
             times.append(time.monotonic() - start)
         label = f"{gen}-{phase}-{mode}"
         (args.out / (label + ".json")).write_text(json.dumps(rankings))
@@ -187,7 +201,15 @@ def main():
                 break
             q = probes[i % len(probes)]
             try:
-                hits = observations(a, q, "a", "hybrid", args.depth, args.k)
+                hits = observations(
+                    a,
+                    q,
+                    "a",
+                    "hybrid",
+                    args.depth,
+                    args.k,
+                    set(gold[q["id"]]["eligible"]),
+                )
                 quality = score_pages({q["id"]: gold[q["id"]]}, {q["id"]: hits}, args.k)
                 observed.append(
                     dict(

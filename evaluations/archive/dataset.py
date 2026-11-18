@@ -124,7 +124,7 @@ def verify_acquisition(data_dir: Path, spec: DatasetSpec = V2) -> dict[str, Any]
 def load_questions(data_dir: Path, spec: DatasetSpec = V2) -> list[dict[str, Any]]:
     with (data_dir / spec.csv_name).open(newline="", encoding="utf-8-sig") as fh:
         rows = list(csv.DictReader(fh))
-    required = {"uid", "question", "answer", "source_files"}
+    required = {"uid", "question", "answer", "source_files", "source_docs"}
     missing = required - set(rows[0] if rows else {})
     if missing:
         raise ValueError(f"OfficeQA CSV missing fields: {sorted(missing)}")
