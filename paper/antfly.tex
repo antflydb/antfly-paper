@@ -444,6 +444,27 @@ order, each with the result the design predicts.
   \end{tabularx}
 \end{table*}
 
+\paragraph{Representative document workload.}
+We plan to use the complete OfficeQA Pro v2 corpus of 1,435 PDFs and its
+90 questions to compare Antfly, PostgreSQL with pgvector, OpenSearch,
+Vespa, and LanceDB. A synthetic tenant overlay assigns visibility and typed
+metadata independently of the answer keys. Tenants use different metadata
+fields, and both add a typed field after ingestion. The comparison records
+the mappings, indexes, policy enforcement, and application changes each system
+requires. PostgreSQL stores tenant-specific metadata in JSONB alongside shared
+typed columns.
+
+For the matched retrieval comparison, all systems receive the same text,
+chunks, and embeddings. We compare lexical, dense, and hybrid retrieval and
+measure recall over eligible evidence documents, the fraction of queries with
+all eligible evidence retrieved, and any ineligible results. A separate
+raw-PDF run uses the original questions, the same answer model and budget,
+and the upstream scorer. During model migration, the service continues to
+query generation A while B builds. We measure query tails, availability,
+completed vectors, and time to readiness, then check B with the matching
+query encoder before switching. Controlled fixtures separately establish
+the expected outcomes for crash, stale-response, and privacy tests.
+
 Secondary experiments measure serving-only versus serving-with-backfill under
 fixed offered load, alongside an isolated-inference control with equal total
 resources and the same models. They report query tails, errors, queue growth
