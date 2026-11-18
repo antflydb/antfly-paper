@@ -446,7 +446,12 @@ reported alongside latency.
 \paragraph{Observed release behavior.}
 On v0.3.1 a held query finished on A after the alias moved to B, and a new
 query resolved B. Deliberately pairing the wrong encoder with an index
-failed the vector oracle. In three paired trials at two offered queries/s,
+failed the vector oracle. In a separate five-row fixture we held real B
+embedding work, corrected a source and moved it to a different tenant.
+Both databases continued serving A to its authorized reader before the
+correction and excluded the source from its old tenant after acknowledgement.
+The corrected B sentinel passed independent vector probes before cutover.
+In three paired trials at two offered queries/s,
 Antfly and the PostgreSQL outbox both completed 1,024 384-dimensional vectors.
 Median completion times were 25.79 and 12.69 seconds, respectively. Median
 during-backfill trial p95s were 467 and 379 ms. Both used the same isolated

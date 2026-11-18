@@ -33,6 +33,11 @@ def main():
     )
     p.add_argument("--corpus", type=Path, help="completed OfficeQA corpus directory")
     p.add_argument("--workload", type=Path, help="compiled OfficeQA tenant workload")
+    p.add_argument(
+        "--managed-weights",
+        type=Path,
+        help="root with both BAAI models for true native and durable-outbox migration",
+    )
     args = p.parse_args()
     if bool(args.corpus) != bool(args.workload):
         p.error("--corpus and --workload must be supplied together")
@@ -188,6 +193,102 @@ def main():
                 "100" if args.corpus else "5",
                 env=env,
             )
+            if args.managed_weights and engine in ("antfly", "postgres"):
+                model_mount = []
+                for model in ("BAAI/bge-small-en-v1.5", "BAAI/bge-small-en"):
+                    path = (args.managed_weights / model).resolve(strict=True)
+                    model_mount.extend(["-v", f"{path}:/models/{model}:ro"])
+                start(
+                    network,
+                    *model_mount,
+                    ANT,
+                    "inference",
+                    "run",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    "8092",
+                    "--models-dir",
+                    "/models",
+                )
+                model_url = "http://127.0.0.1:8092"
+                managed_endpoint = endpoint
+                token = secrets.token_hex(24)
+                managed_env = [
+                    "-e",
+                    "PAPER_PASSWORD=" + password,
+                    "-e",
+                    "PAPER_TOKEN=" + token,
+                ]
+                gateway = "http://127.0.0.1:8093"
+                start(
+                    network,
+                    *mount,
+                    *managed_env,
+                    "-e",
+                    "PAPER_NATIVE_URL=" + model_url,
+                    "-e",
+                    "PAPER_GATEWAY_PORT=8093",
+                    args.client,
+                    "/paper/evaluations/head-to-head/scripts/gateway.py",
+                )
+                if engine == "postgres":
+                    start(
+                        network,
+                        *mount,
+                        *managed_env,
+                        "-e",
+                        "PAPER_DB_URL=" + endpoint,
+                        "-e",
+                        "PAPER_MODEL_URL=" + gateway,
+                        "-e",
+                        "PAPER_WORKER_BATCH=32",
+                        args.client,
+                        "/paper/evaluations/head-to-head/scripts/pipeline.py",
+                    )
+                    managed_endpoint = "http://127.0.0.1:8091"
+                for _ in range(60):
+                    probe = "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8092/ai/v1/models',timeout=2)"
+                    if engine == "postgres":
+                        probe += ";import socket;socket.create_connection(('127.0.0.1',8091),2).close()"
+                    ok = subprocess.run(
+                        [
+                            "docker",
+                            "run",
+                            "--rm",
+                            "--network",
+                            network,
+                            args.client,
+                            "-c",
+                            probe,
+                        ],
+                        capture_output=True,
+                    )
+                    if not ok.returncode:
+                        break
+                    time.sleep(1)
+                else:
+                    raise TimeoutError("managed migration readiness")
+                client(
+                    network,
+                    "managed.py",
+                    engine,
+                    "--corpus",
+                    "/corpus" if args.corpus else "/out/matched",
+                    "--out",
+                    "/out/" + engine + "-managed",
+                    "--models",
+                    model_url,
+                    "--producer-models",
+                    gateway,
+                    "--gate",
+                    gateway,
+                    "--deadline",
+                    "86400" if args.corpus else "120",
+                    "--endpoint",
+                    managed_endpoint,
+                    env=managed_env,
+                )
             if args.corpus:
                 continue
             result = json.loads((args.out / engine / "result.json").read_text())

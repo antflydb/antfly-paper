@@ -16,7 +16,7 @@ import psycopg
 from common import embed, findings, reader_password
 
 URL = os.environ["PAPER_DB_URL"]
-MODELS = "http://models:8090"
+MODELS = os.environ.get("PAPER_MODEL_URL", "http://models:8090")
 
 
 def initialize():
