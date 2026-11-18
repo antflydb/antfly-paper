@@ -1,9 +1,10 @@
 """Compile and score the OfficeQA tenant overlay without exposing answer keys."""
+
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import dataset
 from evidence import citations, page_id, score_pages
@@ -18,11 +19,15 @@ def compile_workload(files, questions):
         bucket = int(hashlib.sha256(name.encode()).hexdigest(), 16) % 4
         documents[name] = {
             tenant: {
-                **({"collection_code": f"C{bucket}"} if tenant == "archive"
-                   else {"review_band": bucket}),
+                **(
+                    {"collection_code": f"C{bucket}"}
+                    if tenant == "archive"
+                    else {"review_band": bucket}
+                ),
                 "retention_years": 5 + bucket,
             }
-            for tenant in TENANTS if bucket < 2 or tenant == TENANTS[bucket - 2]
+            for tenant in TENANTS
+            if bucket < 2 or tenant == TENANTS[bucket - 2]
         }
     eligible_by_filter = {}
     for name, views in documents.items():
@@ -37,7 +42,7 @@ def compile_workload(files, questions):
         for tenant in TENANTS:
             for phase in ("initial", "after-schema-change"):
                 for bucket in range(4):
-                    field = ("collection_code" if tenant == "archive" else "review_band")
+                    field = "collection_code" if tenant == "archive" else "review_band"
                     value = f"C{bucket}" if tenant == "archive" else bucket
                     if phase == "after-schema-change":
                         field, value = "retention_years", 5 + bucket
@@ -46,10 +51,19 @@ def compile_workload(files, questions):
                     if not relevant:
                         continue
                     key = f"{row['uid']}:{tenant}:{phase}:{bucket}"
-                    prompts.append({"id": key, "question": row["question"],
-                                    "tenant": tenant, "phase": phase,
-                                    "filter": {"field": field, "equals": value}})
-                    judgments[key] = {"eligible": sorted(eligible), "relevant": sorted(relevant)}
+                    prompts.append(
+                        {
+                            "id": key,
+                            "question": row["question"],
+                            "tenant": tenant,
+                            "phase": phase,
+                            "filter": {"field": field, "equals": value},
+                        }
+                    )
+                    judgments[key] = {
+                        "eligible": sorted(eligible),
+                        "relevant": sorted(relevant),
+                    }
     return documents, prompts, judgments
 
 
@@ -68,9 +82,13 @@ def score(judgments, rankings, k):
         complete += found == len(relevant)
         ineligible += sum(hit not in eligible for hit in hits)
     count = len(judgments)
-    return {"queries": count, "k": k, "macro_document_recall": recall / count,
-            "all_eligible_evidence_rate": complete / count,
-            "ineligible_hit_count": ineligible}
+    return {
+        "queries": count,
+        "k": k,
+        "macro_document_recall": recall / count,
+        "all_eligible_evidence_rate": complete / count,
+        "ineligible_hit_count": ineligible,
+    }
 
 
 def main():
@@ -91,31 +109,59 @@ def main():
         dataset.download(args.data, spec=dataset.V2)
         return 0
     if args.command == "score":
-        result = (score_pages if args.pages else score)(json.loads(args.judgments.read_text()),
-                       json.loads(args.rankings.read_text()), args.k)
+        result = (score_pages if args.pages else score)(
+            json.loads(args.judgments.read_text()),
+            json.loads(args.rankings.read_text()),
+            args.k,
+        )
         print(json.dumps(result, indent=2))
-        return int((result["ineligible"] if args.pages else result["ineligible_hit_count"]) != 0)
+        return int(
+            (result["ineligible"] if args.pages else result["ineligible_hit_count"])
+            != 0
+        )
 
     acquisition = dataset.verify_acquisition(args.data, dataset.V2)
     rows = dataset.load_questions(args.data, spec=dataset.V2)
-    if len(rows) != dataset.V2.question_count or len({row["uid"] for row in rows}) != len(rows):
+    if len(rows) != dataset.V2.question_count or len(
+        {row["uid"] for row in rows}
+    ) != len(rows):
         raise ValueError("Expected the complete V2 question set with unique IDs")
     docs, prompts, judgments = compile_workload(
         [path.name for path in dataset.pdf_paths(args.data, spec=dataset.V2)], rows
     )
-    counts = {Path(f["path"]).name: f["physical_pages"] for f in acquisition["files"] if f["path"].endswith(".pdf")}
+    counts = {
+        Path(f["path"]).name: f["physical_pages"]
+        for f in acquisition["files"]
+        if f["path"].endswith(".pdf")
+    }
     cited = {r["uid"]: citations(r, counts) for r in rows}
     for row in rows:
-        if {doc for doc, _ in cited[row["uid"]]} != set(dataset.parse_source_files(row["source_files"])):
+        if {doc for doc, _ in cited[row["uid"]]} != set(
+            dataset.parse_source_files(row["source_files"])
+        ):
             raise ValueError(f"citation document disagreement for {row['uid']}")
     for key, judgment in judgments.items():
         allowed = set(judgment["eligible"])
-        judgment["pages"] = sorted(page_id(doc, n) for doc, n in cited[key.rsplit(":", 3)[0]] if doc in allowed)
+        judgment["pages"] = sorted(
+            page_id(doc, n) for doc, n in cited[key.rsplit(":", 3)[0]] if doc in allowed
+        )
     args.out.mkdir(parents=True, exist_ok=False)
-    for name, value in (("documents", docs), ("queries", prompts), ("judgments", judgments),
-                        ("provenance", {"dataset": dataset.V2.identity(),
-                         "acquisition_sha256": dataset.sha256_file(args.data / "dataset-manifest.json"),
-                         "raw_pdfs": acquisition["raw_pdfs"], "queries": len(prompts)})):
+    for name, value in (
+        ("documents", docs),
+        ("queries", prompts),
+        ("judgments", judgments),
+        (
+            "provenance",
+            {
+                "dataset": dataset.V2.identity(),
+                "acquisition_sha256": dataset.sha256_file(
+                    args.data / "dataset-manifest.json"
+                ),
+                "raw_pdfs": acquisition["raw_pdfs"],
+                "queries": len(prompts),
+            },
+        ),
+    ):
         (args.out / f"{name}.json").write_text(json.dumps(value, indent=2) + "\n")
     return 0
 

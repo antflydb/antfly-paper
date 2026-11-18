@@ -2,7 +2,7 @@
 
 Open-source protocols and reproducible evaluation tools for Antfly. Code is
 Apache-2.0 licensed. This repository contains the evaluation implementation;
-it does not yet publish a completed paper evaluation or comparative results.
+the public archive artifact includes controlled release measurements and the corpus-scale evaluation tools.
 
 ## Paper
 
@@ -19,7 +19,8 @@ Polymorphic Database". Build it with `make -C paper pdf`.
 | Revision fencing | [revision-fencing](evaluations/revision-fencing/protocol.md) | Draft |
 | Crash and update correctness | [crash-correctness](evaluations/crash-correctness/protocol.md) | Draft |
 | Privacy coverage | [privacy-coverage](evaluations/privacy-coverage/protocol.md) | Draft |
-| Head-to-head on representative applications | [protocol](evaluations/head-to-head/protocol.md), [implementation](evaluations/head-to-head/README.md) | Document qualification implemented; blocked by [privacy activation](https://github.com/antflydb/antfly/issues/1682); cost trials not run |
+| Financial archive, hybrid search and graph evidence | [public archive artifact](evaluations/archive/README.md) | Five-engine miniature and paired raw PDF graph qualification executed |
+| Head-to-head on representative applications | [protocol](evaluations/head-to-head/protocol.md), [implementation](evaluations/head-to-head/README.md) | Released v0.3.1 qualification and three paired backfill trials completed; see [observations](evaluations/archive/observations/backfill-v031.json) |
 
 Draft protocols state the claim, invariants, method and metrics. They must be
 frozen with a subject commit and pinned inputs before any measurement.

@@ -1,7 +1,8 @@
 """Physical-page and evidence-graph oracles shared across database adapters."""
+
+import re
 from collections import Counter
 from pathlib import Path
-import re
 
 
 def citations(row, counts):
@@ -9,13 +10,17 @@ def citations(row, counts):
     pages = set()
     source = row["source_docs"]
     # Descriptions can contain semicolons. Split on keyed record starts.
-    records = re.findall(r"corpus_file=([^|;]+?)\s*\|\s*pdf_page_number=(\d+)\b", source)
+    records = re.findall(
+        r"corpus_file=([^|;]+?)\s*\|\s*pdf_page_number=(\d+)\b", source
+    )
     if records and len(records) != source.count("corpus_file="):
         raise ValueError("unrecognized keyed citation")
     if not records:
         # Two publisher formats in the frozen V2 CSV omit field labels.
         for line in source.strip().splitlines():
-            match = re.match(r"^N/A\s+\d{4}\s+(\d+)\s+(\S+?\.txt)(?:,|\s|$)", line.strip())
+            match = re.match(
+                r"^N/A\s+\d{4}\s+(\d+)\s+(\S+?\.txt)(?:,|\s|$)", line.strip()
+            )
             if match:
                 records.append((match[2], match[1]))
                 continue
@@ -57,14 +62,22 @@ def score_pages(judgments, rankings, k):
         unique = list(dict.fromkeys(hits))
         found = len(relevant.intersection(unique[:k]))
         per_query[query] = {
-            "found": found, "required": len(relevant), "recall": found / len(relevant),
+            "found": found,
+            "required": len(relevant),
+            "recall": found / len(relevant),
             "all": found == len(relevant),
-            "ineligible": sum(hit.rsplit("#page=", 1)[0] not in eligible for hit in hits),
+            "ineligible": sum(
+                hit.rsplit("#page=", 1)[0] not in eligible for hit in hits
+            ),
         }
-    return {"k": k, "queries": len(per_query),
-            "recall": sum(x["recall"] for x in per_query.values()) / len(per_query),
-            "complete": sum(x["all"] for x in per_query.values()) / len(per_query),
-            "ineligible": sum(x["ineligible"] for x in per_query.values()), "per_query": per_query}
+    return {
+        "k": k,
+        "queries": len(per_query),
+        "recall": sum(x["recall"] for x in per_query.values()) / len(per_query),
+        "complete": sum(x["all"] for x in per_query.values()) / len(per_query),
+        "ineligible": sum(x["ineligible"] for x in per_query.values()),
+        "per_query": per_query,
+    }
 
 
 def fuse(channels, limit):
@@ -81,7 +94,12 @@ def score_assertions(expected, observed):
     if any(len(item) != 4 for item in gold | found):
         raise ValueError("expected four fields per supported assertion")
     true = len(gold & found)
-    return {"correct": true, "required": len(gold), "returned": len(found),
-            "precision": true / len(found) if found else None,
-            "recall": true / len(gold) if gold else None,
-            "missing": sorted(gold - found), "unexpected": sorted(found - gold)}
+    return {
+        "correct": true,
+        "required": len(gold),
+        "returned": len(found),
+        "precision": true / len(found) if found else None,
+        "recall": true / len(gold) if gold else None,
+        "missing": sorted(gold - found),
+        "unexpected": sorted(found - gold),
+    }
