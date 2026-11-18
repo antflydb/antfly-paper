@@ -49,8 +49,12 @@ def main():
                     peer["results"][key]["quality"]["per_query"],
                 )
     traffic = d["traffic"]
-    result["observed"] = len(traffic)
-    result["errors"] = sum("error" in t for t in traffic)
+    overloaded = sum(
+        t.get("error") == "load generator at concurrency limit" for t in traffic
+    )
+    result["observed"] = len(traffic) - overloaded
+    result["overloaded"] = overloaded
+    result["errors"] = sum("error" in t for t in traffic) - overloaded
     result["missing_arrivals"] = max(0, d["scheduled_arrivals"] - len(traffic))
     print(json.dumps(result, indent=2))
     if args.figure:
@@ -64,6 +68,8 @@ def main():
         ax.set_ylabel("B rows acknowledged")
         latency = defaultdict(list)
         for r in traffic:
+            if "latency" not in r:
+                continue
             latency[int(r["arrival"] // 5)].append(r["latency"] * 1000)
             if "error" in r:
                 lat.plot(r["arrival"], r["latency"] * 1000, "rx")

@@ -57,6 +57,8 @@ The corresponding engine names are `antfly`, `opensearch`, `vespa` and `lance`. 
 
 The report pairs original questions and bootstraps original-question clusters. Its figure shows acknowledged B rows and A query p95 in five-second bins. Raw observations include failed requests and scheduled arrivals. Review search quality, availability, completed work and the access enforcement boundary before comparing timing.
 
+The bulk comparison measures B separately at the last acknowledged write, complete indexing and a successful two-channel tenant query, and the first verified query after the controller switches table and encoder. Antfly uses `sync_level=write` on B and requires both full-text and vector index counts to match the expected rows. Each other adapter finalizes its indexes and checks its searchable row count. The first after-schema-change query must return eligible hits on both channels on every subject. Cutover includes that first read on the selected table. The A-only baseline and migration use the same 2 QPS schedule with eight concurrent client slots. Receipts distinguish dispatch time, lexical and dense durations, completion, and client overload. On macOS set the standalone server's soft file limit to 65536 before starting the campaign.
+
 ## Score answers and graph evidence
 
 Run the identical single-call reader against the two raw-object systems and the oracle-page control. Rank only original questions for this arm. Include the same reader revision and context/output budgets in every run.

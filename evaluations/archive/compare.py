@@ -15,11 +15,26 @@ from engines import Antfly, Lance, OpenSearch, Pg, Vespa
 from evidence import fuse, score_pages
 
 
-def observations(engine, query, gen, mode, depth, limit, eligible=None):
+def observations(
+    engine,
+    query,
+    gen,
+    mode,
+    depth,
+    limit,
+    eligible=None,
+    channel_times=None,
+    require_hits=False,
+):
     channels = ("lexical", "dense") if mode == "hybrid" else (mode,)
     pages, ranks = {}, []
     for channel in channels:
+        started = time.monotonic()
         hits = engine.search(query, query[gen], channel, depth)
+        if channel_times is not None:
+            channel_times[channel] = time.monotonic() - started
+        if require_hits and not hits:
+            raise ValueError(f"empty {channel} readiness probe")
         if eligible is not None and any(
             page.rsplit("#page=", 1)[0] not in eligible for _, page in hits
         ):
@@ -92,7 +107,8 @@ def load(
     if batch:
         engine.insert(batch)
         count += len(batch)
-    engine.finish()
+        if progress:
+            progress(count)
     return count
 
 
@@ -169,10 +185,13 @@ def main():
     schemas = {}
 
     def build(g):
+        if args.engine == "antfly":
+            return Antfly(
+                args.endpoint, prefix + g, "write" if g == "b" else "full_index"
+            )
         if args.engine == "vespa":
             return Vespa(args.endpoint, prefix + g, schemas)
         return {
-            "antfly": Antfly,
             "opensearch": OpenSearch,
             "lance": Lance,
             "postgres": Pg,
@@ -181,55 +200,72 @@ def main():
     a, b = build("a"), build("b")
     a.create(len(first["a"]))
     count = load(a, chunks, "a", False)
+    a.finish()
     results = replay(a, "a", queries, args, "initial", gold)
     a.evolve()
     if (
         a.populate_retention() if isinstance(a, Lance) else load(a, chunks, "a", True)
     ) != count:
         raise ValueError("schema evolution row count changed")
+    if not isinstance(a, Lance):
+        a.finish()
     results.update(replay(a, "a", queries, args, "after-schema-change", gold))
     results.update(replay(a, "a", queries, args, "original", gold))
-    start = time.monotonic()
     probes = [q for q in queries if q["phase"] == "after-schema-change"]
-    observed, stop = [], threading.Event()
+    probe = probes[0]
+    eligible = {q["id"]: set(gold[q["id"]]["eligible"]) for q in probes}
+    stop = threading.Event()
+    start = time.monotonic()
 
-    def traffic():
-        i = 0
-        while True:
-            due = start + i / args.qps
-            if stop.wait(max(0, due - time.monotonic())):
-                break
-            q = probes[i % len(probes)]
-            try:
-                hits = observations(
-                    a,
-                    q,
-                    "a",
-                    "hybrid",
-                    args.depth,
-                    args.k,
-                    set(gold[q["id"]]["eligible"]),
-                )
-                quality = score_pages({q["id"]: gold[q["id"]]}, {q["id"]: hits}, args.k)
-                observed.append(
-                    dict(
-                        arrival=i / args.qps,
-                        latency=time.monotonic() - due,
-                        id=q["id"],
-                        hits=hits,
-                        ineligible=quality["ineligible"],
-                    )
-                )
-            except Exception as exc:
-                observed.append(
-                    dict(
-                        arrival=i / args.qps,
-                        latency=time.monotonic() - due,
-                        error=str(exc),
-                    )
-                )
-            i += 1
+    def serve(i):
+        q = probes[i % len(probes)]
+        dispatched = time.monotonic() - start
+        stages = {}
+        row = dict(
+            arrival=i / args.qps,
+            dispatched=dispatched,
+            id=q["id"],
+            channel_seconds=stages,
+        )
+        try:
+            row["hits"] = observations(
+                a, q, "a", "hybrid", args.depth, args.k, eligible[q["id"]], stages
+            )
+            row["ineligible"] = score_pages(
+                {q["id"]: gold[q["id"]]}, {q["id"]: row["hits"]}, args.k
+            )["ineligible"]
+        except Exception as exc:
+            row["error"] = str(exc)
+        row["completed"] = time.monotonic() - start
+        row["latency"] = row["completed"] - row["arrival"]
+        return row
 
+    def traffic(limit=None):
+        observed, pending = [], []
+        with ThreadPoolExecutor(max_workers=8) as workers:
+            i = 0
+            while limit is None or i < limit:
+                if stop.wait(max(0, start + i / args.qps - time.monotonic())):
+                    break
+                for job in pending.copy():
+                    if job.done():
+                        observed.append(job.result())
+                        pending.remove(job)
+                if len(pending) < 8:
+                    pending.append(workers.submit(serve, i))
+                else:
+                    observed.append(
+                        {
+                            "arrival": i / args.qps,
+                            "error": "load generator at concurrency limit",
+                        }
+                    )
+                i += 1
+            observed.extend(job.result() for job in pending)
+        return sorted(observed, key=lambda row: row["arrival"])
+
+    baseline = traffic(len(probes))
+    start = time.monotonic()
     model_metrics = {"model_batches": 0, "model_seconds": 0.0, "embedded_chunks": 0}
     progress = []
     with ThreadPoolExecutor(1) as pool:
@@ -250,10 +286,45 @@ def main():
             )
             if completed != count:
                 raise ValueError("B row acknowledgment count mismatch")
+            writes = time.monotonic() - start
+            b.finish()
+            deadline = time.monotonic() + 900
+            while True:
+                counts = b.indexed_counts()
+                if counts and all(n == count for n in counts.values()):
+                    break
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"B coverage expected {count}, observed {counts}"
+                    )
+                time.sleep(1)
+            observations(
+                b,
+                probe,
+                "b",
+                "hybrid",
+                args.depth,
+                args.k,
+                eligible[probe["id"]],
+                require_hits=True,
+            )
             elapsed = time.monotonic() - start
         finally:
             stop.set()
-            future.result()
+            observed = future.result()
+    switch = time.monotonic()
+    active, encoder = b, "b"
+    first_hits = observations(
+        active,
+        probe,
+        encoder,
+        "hybrid",
+        args.depth,
+        args.k,
+        eligible[probe["id"]],
+        require_hits=True,
+    )
+    cutover = time.monotonic() - switch
     results.update(replay(b, "b", queries, args, "after-schema-change", gold))
     receipt = {
         "engine": args.engine,
@@ -263,8 +334,20 @@ def main():
         "depth": args.depth,
         "qps": args.qps,
         "b_load_seconds": elapsed,
+        "b_writes_complete_seconds": writes,
+        "b_ready_seconds": elapsed,
+        "b_indexed_counts": counts,
+        "cutover_request_seconds": switch - start,
+        "cutover_complete_seconds": switch - start + cutover,
+        "cutover_seconds": cutover,
+        "cutover_probe": {"id": probe["id"], "pages": first_hits, "encoder": encoder},
+        "migration_write_barrier": "write"
+        if args.engine == "antfly"
+        else "adapter default",
+        "baseline_traffic": baseline,
+        "traffic_concurrency": 8,
         "traffic": observed,
-        "acknowledged_rows_over_time": progress + [[elapsed, completed]],
+        "acknowledged_rows_over_time": progress,
         "model_metrics": model_metrics,
         "scheduled_arrivals": math.ceil(elapsed * args.qps),
         "results": results,
@@ -280,7 +363,7 @@ def main():
     return int(
         bool(
             missed
-            or any(r.get("error") or r.get("ineligible") for r in observed)
+            or any(r.get("error") or r.get("ineligible") for r in baseline + observed)
             or any(r.get("quality", {}).get("ineligible") for r in results.values())
         )
     )

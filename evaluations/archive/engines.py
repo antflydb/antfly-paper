@@ -106,6 +106,9 @@ class OpenSearch:
             "PUT", "/_mapping", {"properties": {"retention_years": {"type": "integer"}}}
         )
 
+    def indexed_counts(self):
+        return {"rows": self.request("GET", "/_count")["count"]}
+
     def search(self, q, vector, mode, depth):
         predicate = {
             "bool": {"filter": [{"term": {k: v}} for k, v in filters(q).items()]}
@@ -124,7 +127,8 @@ class OpenSearch:
 
 
 class Antfly:
-    def __init__(self, url, name):
+    def __init__(self, url, name, sync_level="full_index"):
+        self.sync_level = sync_level
         self.base, self.name = url.rstrip("/"), name
         self.path = "/db/v1/tables/" + name
         self.admin = os.environ["ARCHIVE_ANTFLY_AUTH"]
@@ -181,7 +185,7 @@ class Antfly:
         result = call(
             self.base + self.path + "/batch",
             "POST",
-            {"inserts": docs, "sync_level": "full_index"},
+            {"inserts": docs, "sync_level": self.sync_level},
             self.admin,
         )
         if result.get("status") != "committed":
@@ -189,6 +193,16 @@ class Antfly:
 
     def finish(self):
         pass
+
+    def indexed_counts(self):
+        counts = {}
+        for name in ("full_text_index_v0", "vec"):
+            response = call(
+                self.base + self.path + "/indexes/" + name, "GET", auth=self.admin
+            )
+            status = response["status"]
+            counts[name] = status["total_indexed"]
+        return counts
 
     def evolve(self):
         pass  # Flexible documents accept the new typed value on write.
@@ -275,6 +289,9 @@ class Lance:
                 index_type="IVF_FLAT",
                 replace=True,
             )
+
+    def indexed_counts(self):
+        return {"rows": self.table.count_rows()}
 
     def search(self, q, vector, mode, depth):
         expr = " AND ".join(
@@ -372,6 +389,16 @@ class Vespa:
 
     def finish(self):
         pass
+
+    def indexed_counts(self):
+        root = call(
+            self.url + "/search/",
+            "POST",
+            {"yql": f"select * from {self.name} where true", "hits": 0},
+        )["root"]
+        if root.get("errors") or root.get("coverage", {}).get("coverage") != 100:
+            raise RuntimeError(f"incomplete Vespa count: {root}")
+        return {"rows": root["fields"]["totalCount"]}
 
     def search(self, q, vector, mode, depth):
         params = {}
@@ -494,6 +521,13 @@ class Pg:
 
     def finish(self):
         self.writer.execute(f"ANALYZE {self.name}")
+
+    def indexed_counts(self):
+        return {
+            "rows": self.writer.execute(f"SELECT count(*) FROM {self.name}").fetchone()[
+                0
+            ]
+        }
 
     def search(self, q, vector, mode, depth):
         from psycopg.types.json import Jsonb
