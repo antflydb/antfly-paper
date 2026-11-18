@@ -136,8 +136,17 @@ def main():
     if not 0 < args.k <= args.depth or not math.isfinite(args.qps) or args.qps <= 0:
         p.error("require positive qps and 0 < k <= depth")
     manifest = json.loads((args.corpus / "manifest.json").read_text())
+    if "acquisition_sha256" in manifest:
+        provenance = json.loads((args.workload / "provenance.json").read_text())
+        if provenance["acquisition_sha256"] != manifest["acquisition_sha256"]:
+            raise ValueError("workload acquisition differs from corpus")
     queries = json.loads((args.corpus / "queries.json").read_text())
     gold = json.loads((args.workload / "judgments.json").read_text())
+    query_ids = [q["id"] for q in queries]
+    if len(query_ids) != len(set(query_ids)) or gold.keys() != {
+        q["id"] for q in queries if q["phase"] != "original"
+    }:
+        raise ValueError("corpus queries and workload judgments disagree")
     args.out.mkdir(parents=True, exist_ok=False)
     chunks = args.corpus
     first = next(chunk_rows(chunks))
