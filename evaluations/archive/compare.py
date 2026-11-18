@@ -57,6 +57,7 @@ def load(
 ):
     batch = []
     count = 0
+    batch_size = 2048 if isinstance(engine, Lance) else 128
     for chunk in migration_rows(path, models, metrics):
         for tenant, meta in {**chunk["views"], "public": {}}.items():
             identity = hashlib.sha256(
@@ -76,7 +77,7 @@ def load(
                     },
                 )
             )
-            if len(batch) == 128:
+            if len(batch) == batch_size:
                 engine.insert(batch)
                 count += len(batch)
                 if progress:
@@ -168,7 +169,9 @@ def main():
     count = load(a, chunks, "a", False)
     results = replay(a, "a", queries, args, "initial", gold)
     a.evolve()
-    if load(a, chunks, "a", True) != count:
+    if (
+        a.populate_retention() if isinstance(a, Lance) else load(a, chunks, "a", True)
+    ) != count:
         raise ValueError("schema evolution row count changed")
     results.update(replay(a, "a", queries, args, "after-schema-change", gold))
     results.update(replay(a, "a", queries, args, "original", gold))

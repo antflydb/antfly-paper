@@ -31,7 +31,13 @@ def main():
         choices=["postgres", "antfly", "opensearch", "vespa", "lance"],
         default=["postgres", "antfly", "opensearch", "vespa", "lance"],
     )
+    p.add_argument("--corpus", type=Path, help="completed OfficeQA corpus directory")
+    p.add_argument("--workload", type=Path, help="compiled OfficeQA tenant workload")
     args = p.parse_args()
+    if bool(args.corpus) != bool(args.workload):
+        p.error("--corpus and --workload must be supplied together")
+    if args.corpus and args.ocr_weights:
+        p.error("use corpus.py to prepare the raw-object arm before retrieval")
     args.out.mkdir(parents=True, exist_ok=False)
 
     def docker(*cmd, **opts):
@@ -57,8 +63,18 @@ def main():
             *argv,
         )
 
-    client("none", "miniature.py", "/out/matched")
-    client("none", "fixture_archive.py", "/out/fixture")
+    if args.corpus:
+        mount.extend(
+            [
+                "-v",
+                f"{args.corpus.resolve()}:/corpus:ro",
+                "-v",
+                f"{args.workload.resolve()}:/workload:ro",
+            ]
+        )
+    else:
+        client("none", "miniature.py", "/out/matched")
+        client("none", "fixture_archive.py", "/out/fixture")
     password = secrets.token_hex(20)
     for engine in args.engines:
         with ExitStack() as stack:
@@ -75,7 +91,7 @@ def main():
 
             env = []
             network = "none"
-            endpoint = "/out/lance"
+            endpoint = "/out/lance-data"
             if engine == "postgres":
                 server = start("none", "-e", "POSTGRES_PASSWORD=" + password, PG)
                 endpoint = f"postgresql://postgres:{password}@127.0.0.1/postgres"
@@ -161,17 +177,19 @@ def main():
                 "--endpoint",
                 endpoint,
                 "--corpus",
-                "/out/matched",
+                "/corpus" if args.corpus else "/out/matched",
                 "--workload",
-                "/out/matched",
+                "/workload" if args.workload else "/out/matched",
                 "--out",
                 "/out/" + engine,
                 "--k",
-                "1",
+                "20" if args.corpus else "1",
                 "--depth",
-                "5",
+                "100" if args.corpus else "5",
                 env=env,
             )
+            if args.corpus:
+                continue
             result = json.loads((args.out / engine / "result.json").read_text())
             if any(
                 r["quality"]["recall"] != 1

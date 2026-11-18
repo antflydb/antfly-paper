@@ -250,17 +250,21 @@ class Lance:
                 ]
             ),
         )
-        self.indexed = False
 
     def evolve(self):
         self.table.add_columns({"retention_years": "cast(NULL as integer)"})
 
+    def populate_retention(self):
+        # The frozen tenant overlay assigns five years plus the metadata bucket.
+        for bucket in range(4):
+            self.table.update(
+                where=f"(tenant='audit' AND review_band={bucket}) OR (tenant='archive' AND collection_code='C{bucket}')",
+                values={"retention_years": 5 + bucket},
+            )
+        return self.table.count_rows()
+
     def insert(self, rows):
-        self.table.merge_insert(
-            "id"
-        ).when_matched_update_all().when_not_matched_insert_all().execute(
-            [{k: r.get(k) for k in self.table.schema.names} for r in rows]
-        )
+        self.table.add([{k: r.get(k) for k in self.table.schema.names} for r in rows])
 
     def finish(self):
         self.table.create_fts_index("body", replace=True)

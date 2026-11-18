@@ -39,6 +39,28 @@ def fetch_object(url, sha, etag=None):
     return raw
 
 
+def fetch_s3(client, ref, sha):
+    args = {
+        "Bucket": ref["bucket"],
+        "Key": ref["key"],
+        "VersionId": ref["version"],
+        "IfMatch": ref["etag"],
+    }
+    response = client.get_object(**args)
+    try:
+        if (
+            response.get("VersionId") != ref["version"]
+            or response.get("ETag") != ref["etag"]
+        ):
+            raise ValueError("S3 response does not identify requested object version")
+        raw = response["Body"].read()
+    finally:
+        response["Body"].close()
+    if digest(raw) != sha:
+        raise ValueError("remote object content mismatch")
+    return raw
+
+
 def chunk_rows(root):
     single = root / "chunks.jsonl"
     paths = (
@@ -84,6 +106,7 @@ def main():
         required=True,
         help="directory containing both mounted encoder model directories",
     )
+    p.add_argument("--s3-endpoint", help="endpoint for versioned S3 source descriptors")
     args = p.parse_args()
     if args.objects and args.object_manifest:
         p.error("choose one object source")
@@ -132,6 +155,11 @@ def main():
     completed = args.out / "checkpoints"
     completed.mkdir(exist_ok=True)
     totals = defaultdict(int)
+    s3 = None
+    if any("bucket" in ref for ref in refs.values()):
+        import boto3
+
+        s3 = boto3.client("s3", endpoint_url=args.s3_endpoint)
     shards = args.out / "documents"
     shards.mkdir(exist_ok=True)
     for item in inventory["files"]:
@@ -154,7 +182,11 @@ def main():
                 if args.object_manifest
                 else {"url": args.objects.rstrip("/") + "/" + quote(name)}
             )
-            raw = fetch_object(ref["url"], item["local_sha256"], ref.get("etag"))
+            raw = (
+                fetch_s3(s3, ref, item["local_sha256"])
+                if "bucket" in ref
+                else fetch_object(ref["url"], item["local_sha256"], ref.get("etag"))
+            )
             totals["bytes_fetched"] += len(raw)
             pages = extract_pdf(raw, args.models)
         else:

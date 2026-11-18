@@ -22,7 +22,7 @@ def main():
     p.add_argument("--migration-models")
     args = p.parse_args()
     version = subprocess.check_output(
-        [str(args.binary.resolve()), "--version"], text=True
+        [str(args.binary.resolve()), "--version"], text=True, stderr=subprocess.STDOUT
     )
     if not version.startswith("antfly 0.3.1 "):
         raise ValueError("this campaign uses the official v0.3.1 subject")
