@@ -23,8 +23,11 @@ def main():
     p.add_argument("--endpoint", required=True, help="chat completions URL")
     p.add_argument("--context-chars", type=int, default=48000)
     p.add_argument("--max-tokens", type=int, default=512)
+    p.add_argument(
+        "--request-timeout", type=int, default=180, help="seconds per reader call"
+    )
     args = p.parse_args()
-    if min(args.context_chars, args.max_tokens) < 1:
+    if min(args.context_chars, args.max_tokens, args.request_timeout) < 1:
         p.error("budgets must be positive")
     manifest = dataset.verify_acquisition(args.data)
     questions = dataset.load_questions(args.data, spec=dataset.V2)
@@ -90,7 +93,7 @@ def main():
                 )
             with urlopen(
                 Request(args.endpoint, data=json.dumps(body).encode(), headers=headers),
-                timeout=180,
+                timeout=args.request_timeout,
             ) as r:
                 reply = json.load(r)
             raw = reply["choices"][0]["message"]["content"]

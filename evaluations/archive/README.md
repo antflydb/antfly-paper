@@ -81,6 +81,8 @@ The reader receives only the question and selected page text. Gold answers remai
 
 ## Evidence
 
+The [OfficeQA archive report](REPORT.md) gives the completed full-corpus native trials, paired retrieval intervals, migration tails and coverage of the controlled fixtures.
+
 [Observed v0.3.1 backfill trials](observations/backfill-v031.json) contain all six paired trial phase summaries, original result digests and exclusions. [Five-engine fixture quality](observations/matched-fixture.json) contains the scoped per-query results. Raw graph receipts are provided for [Antfly](observations/antfly-raw-final.json) and [PostgreSQL](observations/postgres-raw-final.json). The source used for the first T9 corpus preparation is frozen at commit `b1b372c`.
 
 To measure extraction quality, run `extract.py --sample sample.json --corpus "$RAW_CORPUS" --model "$READER" --endpoint "$CHAT_COMPLETIONS_URL" --out "$EXTRACTION"`, then pass its assertions.json to the annotation scorer. Annotate using the same paid-for and fiscal-year relations, with a page citation for each triple. Keep annotators blind to the predictions. For the equal-page-budget retrieval ablation, run `expand.py --workload "$WORKLOAD" --rankings "$RESULT/a-after-schema-change-hybrid.json" --assertions "$EXTRACTION/assertions.json" --k 20 --out "$EXPANSION"`. This is a common application-side quality ablation over extracted facts. Its runtime excludes native graph traversal. Missing sampled evidence remains a miss. The native graph comparison is the separate two-hop experiment above.
@@ -94,3 +96,27 @@ Run `audit_pages.py --data "$DATA" --out "$PRIVATE_AUDIT"` to render a determini
 ## Database-owned migration and durable outbox
 
 Add `--managed-weights "$MODEL_DIRECTORY"` to the Docker controller to also exercise native Antfly indexing and PostgreSQL's transactional outbox on identical source chunks. This arm builds the generation inside each system. The gateway admits the empty-table configuration probe and holds actual B model work. An A reader retrieves a sentinel during the hold. A source write corrects that sentinel and revokes the old tenant, then the gateway releases the earlier work. The controller records completion counts, availability, scheduled traffic, gate events, and independent B vector probes on the resulting sentinels. The archive fixture uses real 384-dimensional BGE models. PostgreSQL returns the stored tuple to the authorized reader. Antfly's unprotected index is queried with the expected vector and its antipode, then its native alias switches the serving index and query encoder together. The separate protected-document qualification checks persisted vectors through the administrator inspection endpoint. The five-row controlled receipts are [Antfly](observations/antfly-managed.json) and [PostgreSQL](observations/postgres-managed.json). Full-corpus managed runs include two added sentinels and use a deterministic partition into the two lifecycle principals. The tenant-overlay retrieval arm separately measures overlapping permissions.
+
+For a private, loopback HTTP source backed by the verified acquisition, run
+`python3 local_objects.py --data "$DATA" --manifest "$REFS"` and pass the
+resulting manifest to the raw corpus builder. This mode addresses PDF bytes by
+SHA-256, supplies a strong ETag and verifies conditional reads. It measures
+local HTTP acquisition. The versioned S3 protocol is available separately.
+
+For the raw answer arm, pass `--original-only` to `compare.py` or
+`native_release.py` to build generation A, check row coverage and retrieve
+original-question rankings. Use the same reader endpoint, model artifact and
+budgets for every set of rankings and the oracle. Increase
+`--request-timeout` on `answers.py` and `extract.py` for a local reader with
+long prompts. To prepare the blind human review, run
+`python3 review_packet.py --data "$DATA" --sample sample.json --out "$PRIVATE_PACKET"`.
+The packet includes the sampled page images, their identities, instructions and
+two independent blank forms. An unread page is null. Reviewers explicitly
+enter an empty list for a reviewed page with zero supported facts.
+
+Generate a Markdown comparison from completed inference-inclusive receipts with
+`python3 campaign_report.py --cohort "$PLATFORM_AND_DEPLOYMENT" first/result.json second/result.json`.
+The inputs must match on corpus, retrieval budget, offered load and migration
+mode. The report includes aggregate quality, request failures, missing arrivals
+and each full receipt's SHA-256. The native figure can be regenerated from the
+public minute bins with `migration_figure.py` and Matplotlib.

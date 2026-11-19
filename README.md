@@ -19,7 +19,7 @@ Polymorphic Database". Build it with `make -C paper pdf`.
 | Revision fencing | [revision-fencing](evaluations/revision-fencing/protocol.md) | Draft |
 | Crash and update correctness | [crash-correctness](evaluations/crash-correctness/protocol.md) | Draft |
 | Privacy coverage | [privacy-coverage](evaluations/privacy-coverage/protocol.md) | Draft |
-| Financial archive, hybrid search and graph evidence | [public archive artifact](evaluations/archive/README.md) | Five-engine miniature and paired raw PDF graph qualification executed |
+| Financial archive, hybrid search and graph evidence | [public archive artifact](evaluations/archive/README.md) | Full-corpus native Antfly and LanceDB [results](evaluations/archive/REPORT.md), five-engine fixture and paired raw PDF graph qualification |
 | Head-to-head on representative applications | [protocol](evaluations/head-to-head/protocol.md), [implementation](evaluations/head-to-head/README.md) | Released v0.3.1 qualification and three paired backfill trials completed; see [observations](evaluations/archive/observations/backfill-v031.json) |
 
 Draft protocols state the claim, invariants, method and metrics. They must be

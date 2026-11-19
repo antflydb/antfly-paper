@@ -18,8 +18,11 @@ def main():
     p.add_argument("--endpoint", required=True)
     p.add_argument("--max-tokens", type=int, default=1024)
     p.add_argument("--context-chars", type=int, default=24000)
+    p.add_argument(
+        "--request-timeout", type=int, default=180, help="seconds per reader call"
+    )
     args = p.parse_args()
-    if min(args.context_chars, args.max_tokens) < 1:
+    if min(args.context_chars, args.max_tokens, args.request_timeout) < 1:
         p.error("positive budgets required")
     pages = json.loads(args.sample.read_text())["pages"]
     content = {page: [] for page in pages}
@@ -57,7 +60,7 @@ def main():
                         data=json.dumps(request).encode(),
                         headers=headers,
                     ),
-                    timeout=180,
+                    timeout=args.request_timeout,
                 ) as r:
                     data = json.load(r)
                 raw = data["choices"][0]["message"]["content"]

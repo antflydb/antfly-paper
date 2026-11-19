@@ -481,14 +481,24 @@ typed columns.
 
 For the matched retrieval comparison, all systems receive the same text,
 chunks, and embeddings. We compare lexical, dense, and hybrid retrieval and
-measure recall over eligible evidence documents, the fraction of queries with
-all eligible evidence retrieved, and any ineligible results. A separate
-raw-PDF run uses the original questions, the same answer model and budget,
+measure recall over eligible evidence pages, the fraction of queries with
+all eligible evidence retrieved, and any ineligible results. The raw-PDF protocol uses the original questions, the same answer model and budget,
 and the upstream scorer. During model migration, the service continues to
 query generation A while B builds. We measure query tails, availability,
 completed vectors, and time to readiness, then check B with the matching
 query encoder before switching. Controlled fixtures separately establish
 the expected outcomes for crash, stale-response, and privacy tests.
+
+In the native macOS trials, Antfly and LanceDB each re-embedded 251,707
+publisher-text chunks and built 616,832 searchable B rows. At two offered
+queries/s, all 11,719 and 11,308 scheduled A requests completed, respectively,
+with zero ineligible pages. B was ready in 97.7 and 94.2 minutes; A p95
+during the build was 455 and 825 ms (serving alone: 466 and 815 ms).
+After schema evolution, A hybrid page recall@20 was 22.8\% and 21.9\%.
+The paired difference weighted equally across the 90 original questions
+was $+1.2$ percentage points (95\% bootstrap interval $[-1.0,+3.8]$).
+These single trials used a shared application-side BGE worker and a client
+cutover. The artifact reports per-channel recall and timing boundaries.
 
 Secondary experiments measure serving-only versus serving-with-backfill under
 fixed offered load, alongside an isolated-inference control with equal total

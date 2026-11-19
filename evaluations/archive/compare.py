@@ -112,6 +112,19 @@ def load(
     return count
 
 
+def wait_for_indexed_rows(engine, expected, generation):
+    deadline = time.monotonic() + 900
+    while True:
+        counts = engine.indexed_counts()
+        if counts and all(n == expected for n in counts.values()):
+            return counts
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"{generation} coverage expected {expected}, observed {counts}"
+            )
+        time.sleep(1)
+
+
 def replay(engine, gen, queries, args, phase, gold):
     selected = [q for q in queries if q["phase"] == phase]
     if not selected:
@@ -163,6 +176,11 @@ def main():
         "--migration-models",
         help="rerun B through the pinned model endpoint during the timed build",
     )
+    p.add_argument(
+        "--original-only",
+        action="store_true",
+        help="build A and retrieve original-question pages for reader scoring",
+    )
     args = p.parse_args()
     if not 0 < args.k <= args.depth or not math.isfinite(args.qps) or args.qps <= 0:
         p.error("require positive qps and 0 < k <= depth")
@@ -201,6 +219,23 @@ def main():
     a.create(len(first["a"]))
     count = load(a, chunks, "a", False)
     a.finish()
+    if args.original_only:
+        wait_for_indexed_rows(a, count, "A")
+        results = replay(a, "a", queries, args, "original", gold)
+        (args.out / "result.json").write_text(
+            json.dumps(
+                {
+                    "engine": args.engine,
+                    "source": manifest,
+                    "rows_per_generation": count,
+                    "k": args.k,
+                    "depth": args.depth,
+                    "results": results,
+                },
+                indent=2,
+            )
+        )
+        return
     results = replay(a, "a", queries, args, "initial", gold)
     a.evolve()
     if (
@@ -291,16 +326,7 @@ def main():
                 raise ValueError("B row acknowledgment count mismatch")
             writes = time.monotonic() - start
             b.finish()
-            deadline = time.monotonic() + 900
-            while True:
-                counts = b.indexed_counts()
-                if counts and all(n == count for n in counts.values()):
-                    break
-                if time.monotonic() >= deadline:
-                    raise TimeoutError(
-                        f"B coverage expected {count}, observed {counts}"
-                    )
-                time.sleep(1)
+            counts = wait_for_indexed_rows(b, count, "B")
             observations(
                 b,
                 probe,

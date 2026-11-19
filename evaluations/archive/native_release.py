@@ -20,6 +20,7 @@ def main():
     p.add_argument("--corpus", type=Path, required=True)
     p.add_argument("--workload", type=Path, required=True)
     p.add_argument("--migration-models")
+    p.add_argument("--original-only", action="store_true")
     args = p.parse_args()
     version = subprocess.check_output(
         [str(args.binary.resolve()), "--version"], text=True, stderr=subprocess.STDOUT
@@ -76,6 +77,8 @@ def main():
                 "--out",
                 str(args.out),
             ]
+            if args.original_only:
+                cmd.append("--original-only")
             if args.migration_models:
                 cmd += ["--migration-models", args.migration_models]
             return subprocess.run(
