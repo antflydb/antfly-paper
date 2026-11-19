@@ -120,3 +120,13 @@ The inputs must match on corpus, retrieval budget, offered load and migration
 mode. The report includes aggregate quality, request failures, missing arrivals
 and each full receipt's SHA-256. The native figure can be regenerated from the
 public minute bins with `migration_figure.py` and Matplotlib.
+
+The Wolfspider raw-reader configuration uses Google's Gemma 4 E4B instruction
+QAT q4_0 GGUF (`gemma-4-E4B_q4_0-it.gguf`, SHA-256
+`676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee`)
+from revision `4b4a2c1d584be7264f87aac328a1bc739ce81b6c`. The local
+llama.cpp server (build 12359, commit `b1b770d90`) uses a 32,768-token
+context, one slot, and reasoning disabled. The request temperature is zero.
+Answer runs use 48,000 evidence characters and 512 output tokens, extraction
+uses 24,000 characters and 1,024 output tokens. The shared Florence OCR
+weights have SHA-256 `523000d1759e8a61469aaf33378c6c8affe2ff107b6bbfd1b82a44b53f4bd156`.
