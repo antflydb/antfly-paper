@@ -1,0 +1,75 @@
+{
+  "release": "v0.3.1",
+  "reader": "lightonai/LightOnOCR-3-0.8B:safetensors@36d8636925327c671bd8e479c517a004f7566bd9",
+  "native_deployment": "one loopback standalone; 6144 MiB inference scratch budget",
+  "documents": {
+    "appendix.pdf": {
+      "native": {
+        "unit_count": 1,
+        "chunk_count": 1,
+        "ocr_attempted_count": 0,
+        "ocr_selected_count": 0,
+        "ocr_retained_embedded_count": 0,
+        "ocr_failed_count": 0,
+        "seconds": 2.145,
+        "route": "pdf",
+        "converged": true,
+        "error": null,
+        "search_found_source": true
+      },
+      "application": {
+        "route": "native",
+        "chunks": 1,
+        "costs": {}
+      }
+    },
+    "ledger.pdf": {
+      "native": {
+        "unit_count": 1,
+        "chunk_count": 1,
+        "ocr_attempted_count": 1,
+        "ocr_selected_count": 1,
+        "ocr_retained_embedded_count": 0,
+        "ocr_failed_count": 0,
+        "seconds": 4.036,
+        "route": "pdf",
+        "converged": true,
+        "error": null,
+        "search_found_source": true
+      },
+      "application": {
+        "route": "ocr",
+        "chunks": 1,
+        "costs": {
+          "ocr_calls": 1,
+          "ocr_wall_ms": 1583,
+          "ocr_submitted_pixels": 2105025,
+          "ocr_prompt_tokens": 2094,
+          "ocr_prompt_tokens_reported_calls": 1,
+          "ocr_completion_tokens": 19,
+          "ocr_completion_tokens_reported_calls": 1
+        }
+      }
+    },
+    "long.pdf": {
+      "native": {
+        "unit_count": 1,
+        "chunk_count": 2,
+        "ocr_attempted_count": 0,
+        "ocr_selected_count": 0,
+        "ocr_retained_embedded_count": 0,
+        "ocr_failed_count": 0,
+        "seconds": 2.008,
+        "route": "pdf",
+        "converged": true,
+        "error": null,
+        "search_found_source": true
+      },
+      "application": {
+        "route": "native",
+        "chunks": 2,
+        "costs": {}
+      }
+    }
+  }
+}

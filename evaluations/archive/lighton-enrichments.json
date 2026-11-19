@@ -1,0 +1,22 @@
+{
+  "document_units_v1": {
+    "kind": "asset",
+    "field": "url",
+    "content_type": "application/json",
+    "producer_json": "{\"type\": \"document_extraction\", \"config\": {\"source\": {\"filename_field\": \"filename\", \"content_type_field\": \"mime_type\", \"version_field\": \"version\"}, \"ocr\": {\"mode\": \"auto\", \"reader\": {\"provider\": \"antfly\", \"model\": \"lightonai/LightOnOCR-3-0.8B:safetensors@36d8636925327c671bd8e479c517a004f7566bd9\"}}}}"
+  },
+  "document_chunks_v1": {
+    "kind": "chunk",
+    "source_artifact_name": "document_units_v1",
+    "field": "text",
+    "chunker": {
+      "provider": "antfly",
+      "store_chunks": true,
+      "text": {
+        "target_tokens": 160,
+        "overlap_tokens": 0
+      }
+    },
+    "full_text_index": true
+  }
+}

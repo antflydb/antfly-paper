@@ -14,7 +14,15 @@ import dataset
 from evidence import page_id
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "head-to-head/scripts"))
-from common import EMBEDDER, MIGRATION_EMBEDDER, digest, embed, extract_pdf, request
+from common import (
+    EMBEDDER,
+    MIGRATION_EMBEDDER,
+    READER,
+    digest,
+    embed,
+    extract_pdf,
+    request,
+)
 
 
 def publisher_pages(payload):
@@ -120,6 +128,11 @@ def main():
     p.add_argument(
         "--replacement", choices=(MIGRATION_EMBEDDER, GEMMA), default=MIGRATION_EMBEDDER
     )
+    p.add_argument(
+        "--ocr-model",
+        default=READER,
+        help="Reader selector for raw-object pages requiring OCR",
+    )
     p.add_argument("--resume", action="store_true")
     p.add_argument(
         "--weights",
@@ -162,6 +175,7 @@ def main():
                 weights[str(pth.relative_to(args.weights))] = dataset.sha256_file(pth)
     identity = {
         "weights": weights,
+        "ocr_model": args.ocr_model if args.object_manifest or args.objects else None,
         "code": dataset.sha256_file(Path(__file__)),
         "objects": hashlib.sha256(json.dumps(refs, sort_keys=True).encode()).hexdigest()
         if args.object_manifest
@@ -209,7 +223,7 @@ def main():
                 else fetch_object(ref["url"], item["local_sha256"], ref.get("etag"))
             )
             totals["bytes_fetched"] += len(raw)
-            pages = extract_pdf(raw, args.models)
+            pages = extract_pdf(raw, args.models, reader=args.ocr_model, costs=totals)
         else:
             parsed = args.data / dataset.V2.parse_dir / (Path(name).stem + ".json")
             pages = publisher_pages(json.loads(parsed.read_text()))
@@ -259,6 +273,13 @@ def main():
             dict(
                 totals,
                 revision=dataset.V2.revision,
+                ocr_model=identity["ocr_model"],
+                chunker={
+                    "unit": "whitespace_words",
+                    "size": 160,
+                    "overlap": 0,
+                    "scope": "page",
+                },
                 embedding_a=EMBEDDER,
                 embedding_b=args.replacement,
                 acquisition_sha256=dataset.sha256_file(

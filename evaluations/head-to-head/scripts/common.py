@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import io
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -32,7 +33,7 @@ def request(url, body=None, *, method=None, headers=None, timeout=180):
         ) from exc
 
 
-def extract_pdf(raw, models):
+def extract_pdf(raw, models, *, reader=READER, costs=None):
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(raw)
@@ -49,9 +50,23 @@ def extract_pdf(raw, models):
             uri = (
                 "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
             )
+            start = time.monotonic()
             output = request(
-                models + "/ai/v1/read", {"model": READER, "images": [{"url": uri}]}
+                models + "/ai/v1/read", {"model": reader, "images": [{"url": uri}]}
             )
+            if costs is not None:
+                costs["ocr_calls"] += 1
+                costs["ocr_wall_ms"] += round((time.monotonic() - start) * 1000)
+                costs["ocr_submitted_pixels"] += image.width * image.height
+                usage = output.get("usage") or {}
+                for field in (
+                    "prompt_tokens",
+                    "completion_tokens",
+                    "unmeasured_tokens",
+                ):
+                    if field in usage:
+                        costs["ocr_" + field] += usage[field]
+                        costs["ocr_" + field + "_reported_calls"] += 1
             text = output["data"][0]["text"]
             mode = "ocr"
         pages.append({"page": number + 1, "body": text.strip(), "extraction": mode})
