@@ -262,7 +262,9 @@ class Antfly:
             self.base + self.path + "/schema", "PUT", self.schema(True), self.admin
         )
         target = self.full_text_index(table)
-        deadline = time.monotonic() + 3600
+        # Status can report zero indexed rows until the replacement generation publishes.
+        # Use the same full-corpus deadline as the native migration qualification.
+        deadline = time.monotonic() + 86400
         while table.get("migration") or self.full_text_index(table) != target:
             if time.monotonic() >= deadline:
                 raise TimeoutError("Antfly schema publication: " + target)
