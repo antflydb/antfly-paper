@@ -130,3 +130,11 @@ context, one slot, and reasoning disabled. The request temperature is zero.
 Answer runs use 48,000 evidence characters and 512 output tokens, extraction
 uses 24,000 characters and 1,024 output tokens. The shared Florence OCR
 weights have SHA-256 `523000d1759e8a61469aaf33378c6c8affe2ff107b6bbfd1b82a44b53f4bd156`.
+
+## Fairness and replacement-encoder controls
+
+See the [comparability audit](COMPARABILITY.md) for five-engine quality, policy boundaries, query timing and the Linux credential controls. Reproduce the public 4,096-row fixture with `python3 fairness_control.py --out controls.json`. It launches isolated Docker containers using pinned images and Python's standard library.
+
+To repeat the database part on the prepared corpus, use `python3 corpus_controls.py --corpus "$CORPUS" --workload "$WORKLOAD" --out "$PRIVATE_RESULTS" --probe 284`. Docker needs read access to the paper tree and inputs and write access to the output directory. Each of the five configurations loads frozen B vectors and records write-call wall time inside the total build time. Two rounds reverse the arm order. This measures database, adapter and serving costs independently of B inference. The original shared-inference PostgreSQL trial can be repeated separately with `compare.py postgres --readiness-probe-ordinal 284 --postgres-lexical-control` plus the normal corpus, workload, endpoint, model service and output arguments. Its supplemental A lexical and hybrid replays use a disjunction of the distinct English lexemes on the same RLS-protected index after timing. Primary rankings retain the original parser.
+
+For the separate cross-family experiment, prepare a fresh corpus with `corpus.py --replacement google/embeddinggemma-2`. Mount the same safetensors weights at the client and model service. The builder sends document and query task types to the release runtime, and the timed worker reads the replacement model from the corpus manifest. The authored smoke can be reproduced with `miniature.py "$FIXTURE" --models "$MODEL_URL"` followed by `native_release.py` with the fixture as both corpus and workload and the same migration model service.

@@ -14,7 +14,7 @@ import dataset
 from evidence import page_id
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "head-to-head/scripts"))
-from common import EMBEDDER, MIGRATION_EMBEDDER, digest, embed, extract_pdf
+from common import EMBEDDER, MIGRATION_EMBEDDER, digest, embed, extract_pdf, request
 
 
 def publisher_pages(payload):
@@ -74,10 +74,28 @@ def chunk_rows(root):
                 yield json.loads(line)
 
 
-def flush(pending, output, models):
+GEMMA = "google/embeddinggemma-2"
+
+
+def archive_embed(texts, models, model, *, query=False):
+    if model != GEMMA:
+        return embed(texts, models, model)
+    payload = {
+        "model": model,
+        "input": texts,
+        "dimensions": 768,
+        "task_type": "RETRIEVAL_QUERY" if query else "RETRIEVAL_DOCUMENT",
+    }
+    rows = request(models + "/ai/v1/embed", payload)["data"]
+    if len(rows) != len(texts) or any(len(r["embedding"]) != 768 for r in rows):
+        raise ValueError("incomplete EmbeddingGemma 2 response")
+    return [r["embedding"] for r in rows]
+
+
+def flush(pending, output, models, replacement):
     texts = [row["body"] for row in pending]
     a = embed(texts, models, EMBEDDER)
-    b = embed(texts, models, MIGRATION_EMBEDDER)
+    b = archive_embed(texts, models, replacement)
     if len(a) != len(texts) or len(b) != len(texts):
         raise RuntimeError("incomplete embedding response")
     for i, row in enumerate(pending):
@@ -98,6 +116,9 @@ def main():
         "--object-manifest",
         type=Path,
         help="JSON map of PDF name to versioned URL and optional strong etag",
+    )
+    p.add_argument(
+        "--replacement", choices=(MIGRATION_EMBEDDER, GEMMA), default=MIGRATION_EMBEDDER
     )
     p.add_argument("--resume", action="store_true")
     p.add_argument(
@@ -132,7 +153,7 @@ def main():
     if (args.out / "manifest.json").exists():
         raise ValueError("completed corpus already exists")
     weights = {}
-    for name in (EMBEDDER, MIGRATION_EMBEDDER):
+    for name in (EMBEDDER, args.replacement):
         directory = args.weights / name
         if not (directory / "model.safetensors").is_file():
             raise ValueError(f"missing pinned model {name}")
@@ -210,9 +231,9 @@ def main():
                     )
                     totals["chunks"] += 1
                     if len(pending) == 32:
-                        flush(pending, output, args.models)
+                        flush(pending, output, args.models, args.replacement)
             if pending:
-                flush(pending, output, args.models)
+                flush(pending, output, args.models, args.replacement)
         totals["documents"] += 1
         partial.replace(final)
         stats = {
@@ -228,8 +249,8 @@ def main():
         text = query["question"]
         if text not in cache:
             cache[text] = {
-                g: embed([text], args.models, model)[0]
-                for g, model in (("a", EMBEDDER), ("b", MIGRATION_EMBEDDER))
+                g: archive_embed([text], args.models, model, query=True)[0]
+                for g, model in (("a", EMBEDDER), ("b", args.replacement))
             }
         query.update(cache[text])
     (args.out / "queries.json").write_text(json.dumps(queries))
@@ -239,7 +260,7 @@ def main():
                 totals,
                 revision=dataset.V2.revision,
                 embedding_a=EMBEDDER,
-                embedding_b=MIGRATION_EMBEDDER,
+                embedding_b=args.replacement,
                 acquisition_sha256=dataset.sha256_file(
                     args.data / "dataset-manifest.json"
                 ),

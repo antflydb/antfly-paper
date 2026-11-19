@@ -10,7 +10,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from corpus import MIGRATION_EMBEDDER, chunk_rows, embed
+from corpus import MIGRATION_EMBEDDER, archive_embed, chunk_rows
 from engines import Antfly, Lance, OpenSearch, Pg, Vespa
 from evidence import fuse, score_pages
 
@@ -47,14 +47,14 @@ def observations(
     return list(dict.fromkeys(pages[k] for k in chunks))[:limit]
 
 
-def migration_rows(path, models, metrics):
+def migration_rows(path, models, metrics, replacement):
     import itertools
 
     rows = iter(chunk_rows(path))
     while batch := list(itertools.islice(rows, 32)):
         if models:
             started = time.monotonic()
-            vectors = embed([r["body"] for r in batch], models, MIGRATION_EMBEDDER)
+            vectors = archive_embed([r["body"] for r in batch], models, replacement)
             metrics["model_seconds"] += time.monotonic() - started
             metrics["model_batches"] += 1
             if len(vectors) != len(batch):
@@ -74,12 +74,28 @@ def migration_rows(path, models, metrics):
 
 
 def load(
-    engine, path, generation, evolved, *, models=None, metrics=None, progress=None
+    engine,
+    path,
+    generation,
+    evolved,
+    *,
+    models=None,
+    metrics=None,
+    progress=None,
+    replacement=MIGRATION_EMBEDDER,
 ):
     batch = []
     count = 0
     batch_size = 2048 if isinstance(engine, Lance) else 128
-    for chunk in migration_rows(path, models, metrics):
+
+    def write_batch(rows):
+        start = time.monotonic()
+        engine.insert(rows)
+        if metrics is not None:
+            metrics["write_call_seconds"] += time.monotonic() - start
+            metrics["write_batches"] += 1
+
+    for chunk in migration_rows(path, models, metrics, replacement):
         for tenant, meta in {**chunk["views"], "public": {}}.items():
             identity = hashlib.sha256(
                 (tenant + "\0" + chunk["id"]).encode()
@@ -99,13 +115,13 @@ def load(
                 )
             )
             if len(batch) == batch_size:
-                engine.insert(batch)
+                write_batch(batch)
                 count += len(batch)
                 if progress:
                     progress(count)
                 batch = []
     if batch:
-        engine.insert(batch)
+        write_batch(batch)
         count += len(batch)
         if progress:
             progress(count)
@@ -125,12 +141,22 @@ def wait_for_indexed_rows(engine, expected, generation):
         time.sleep(1)
 
 
-def replay(engine, gen, queries, args, phase, gold):
+def replay(
+    engine,
+    gen,
+    queries,
+    args,
+    phase,
+    gold,
+    *,
+    modes=("lexical", "dense", "hybrid"),
+    suffix="",
+):
     selected = [q for q in queries if q["phase"] == phase]
     if not selected:
         raise ValueError(f"no {phase} queries")
     by_mode = {}
-    for mode in ("lexical", "dense", "hybrid"):
+    for mode in modes:
         rankings, times = {}, []
         for q in selected:
             start = time.monotonic()
@@ -144,7 +170,7 @@ def replay(engine, gen, queries, args, phase, gold):
                 set(gold[q["id"]]["eligible"]) if phase != "original" else None,
             )
             times.append(time.monotonic() - start)
-        label = f"{gen}-{phase}-{mode}"
+        label = f"{gen}-{phase}-{mode}{suffix}"
         (args.out / (label + ".json")).write_text(json.dumps(rankings))
         by_mode[label] = {
             "queries": len(times),
@@ -181,7 +207,32 @@ def main():
         action="store_true",
         help="build A and retrieve original-question pages for reader scoring",
     )
+    p.add_argument(
+        "--readiness-probe-ordinal",
+        type=int,
+        default=1,
+        help="one-based evolved workload query, held fixed across a cohort",
+    )
+    p.add_argument(
+        "--access",
+        choices=("default", "api_key", "application", "dls"),
+        default="default",
+    )
+    p.add_argument(
+        "--postgres-lexical-control",
+        action="store_true",
+        help="replay A with disjunctive English lexemes after timing",
+    )
     args = p.parse_args()
+    if args.postgres_lexical_control and (
+        args.engine != "postgres" or args.original_only
+    ):
+        p.error("lexical control requires a full PostgreSQL trial")
+    supported = {"antfly": {"api_key", "application"}, "opensearch": {"dls"}}
+    if args.access != "default" and args.access not in supported.get(
+        args.engine, set()
+    ):
+        p.error("access mode is incompatible with the selected engine")
     if not 0 < args.k <= args.depth or not math.isfinite(args.qps) or args.qps <= 0:
         p.error("require positive qps and 0 < k <= depth")
     manifest = json.loads((args.corpus / "manifest.json").read_text())
@@ -205,12 +256,16 @@ def main():
     def build(g):
         if args.engine == "antfly":
             return Antfly(
-                args.endpoint, prefix + g, "write" if g == "b" else "full_index"
+                args.endpoint,
+                prefix + g,
+                "write" if g == "b" else "full_index",
+                access="basic" if args.access == "default" else args.access,
             )
+        if args.engine == "opensearch":
+            return OpenSearch(args.endpoint, prefix + g, policy=args.access == "dls")
         if args.engine == "vespa":
             return Vespa(args.endpoint, prefix + g, schemas)
         return {
-            "opensearch": OpenSearch,
             "lance": Lance,
             "postgres": Pg,
         }[args.engine](args.endpoint, prefix + g)
@@ -247,7 +302,15 @@ def main():
     results.update(replay(a, "a", queries, args, "after-schema-change", gold))
     results.update(replay(a, "a", queries, args, "original", gold))
     probes = [q for q in queries if q["phase"] == "after-schema-change"]
-    probe = probes[0]
+    if not 1 <= args.readiness_probe_ordinal <= len(probes):
+        raise ValueError("readiness probe outside evolved workload")
+    probe = probes[args.readiness_probe_ordinal - 1]
+    for channel in ("lexical", "dense"):
+        a_ranks = json.loads(
+            (args.out / f"a-after-schema-change-{channel}.json").read_text()
+        )
+        if not a_ranks[probe["id"]]:
+            raise ValueError(f"chosen readiness probe already empty on A ({channel})")
     eligible = {q["id"]: set(gold[q["id"]]["eligible"]) for q in probes}
     stop = threading.Event()
     start = time.monotonic()
@@ -301,7 +364,13 @@ def main():
 
     baseline = traffic(len(probes))
     start = time.monotonic()
-    model_metrics = {"model_batches": 0, "model_seconds": 0.0, "embedded_chunks": 0}
+    model_metrics = {
+        "model_batches": 0,
+        "model_seconds": 0.0,
+        "embedded_chunks": 0,
+        "write_batches": 0,
+        "write_call_seconds": 0.0,
+    }
     progress = []
     with ThreadPoolExecutor(1) as pool:
         future = pool.submit(traffic)
@@ -318,6 +387,7 @@ def main():
                 True,
                 models=args.migration_models,
                 metrics=model_metrics,
+                replacement=manifest.get("embedding_b", MIGRATION_EMBEDDER),
                 progress=lambda count: progress.append(
                     [time.monotonic() - start, count]
                 ),
@@ -369,6 +439,8 @@ def main():
         "cutover_request_seconds": switch - start,
         "cutover_complete_seconds": switch - start + cutover,
         "cutover_seconds": cutover,
+        "access": args.access,
+        "readiness_probe_ordinal": args.readiness_probe_ordinal,
         "cutover_probe": {"id": probe["id"], "pages": first_hits, "encoder": encoder},
         "migration_write_barrier": "write"
         if args.engine == "antfly"
@@ -387,6 +459,18 @@ def main():
         )
         + "; controller selects generation",
     }
+    if args.postgres_lexical_control:
+        a.match_any_lexeme = True
+        receipt["postgres_lexical_sensitivity"] = replay(
+            a,
+            "a",
+            queries,
+            args,
+            "after-schema-change",
+            gold,
+            modes=("lexical", "hybrid"),
+            suffix="-any-lexeme",
+        )
     if isinstance(b, Antfly):
         receipt["antfly_evolved_schema"] = b.schema(evolved=True)
     (args.out / "result.json").write_text(json.dumps(receipt, indent=2))

@@ -52,7 +52,14 @@ def summarize(path):
             for key, cell in run["results"].items()
             if "quality" in cell
         },
-    }, (run["source"], run["k"], run["depth"], run["qps"], run["migration"])
+    }, (
+        run["source"],
+        run["k"],
+        run["depth"],
+        run["qps"],
+        run["migration"],
+        run.get("readiness_probe_ordinal", 1),
+    )
 
 
 def report(paths, cohort):
@@ -68,13 +75,13 @@ def report(paths, cohort):
         trials.append(trial)
     if len(set(t["engine"] for t in trials)) != len(trials):
         raise ValueError("supply one receipt per engine per cohort")
-    source, k, depth, qps, _ = config
+    source, k, depth, qps, _, probe = config
     lines = [
         "# OfficeQA Pro v2 migration results",
         "",
         cohort,
         "",
-        f"{source['chunks']:,} distinct chunks per trial. Candidate depth {depth}, page budget {k}, offered load {qps:g} queries/s.",
+        f"{source['chunks']:,} distinct chunks per trial. Candidate depth {depth}, page budget {k}, offered load {qps:g} queries/s, readiness probe ordinal {probe}.",
         "",
         "| Engine | B ready (min) | Client cutover (ms) | A p95 before / during (ms) | Scheduled | Missing | Errors (incl. overload) | Ineligible pages during traffic |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",

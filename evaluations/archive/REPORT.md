@@ -4,6 +4,8 @@ Across a full encoder replacement, Antfly and LanceDB each served every schedule
 
 Wolfspider has a 14-core Apple M4 Max and 36 GiB of unified memory. The native runs used macOS arm64, the official Antfly 0.3.1 binary (SHA-256 `c8f04db1564bf8a82d39999cb7f64798685bfbfa806827a7c41055c9bfe09e7d`), LanceDB 0.41.0 and PyArrow 26.0.1. Publisher text mapped to 115,458 of the 118,524 physical pages. Generation A used `BAAI/bge-small-en-v1.5` and B used `BAAI/bge-small-en`. The corpus preparation and timed worker used the same model weights.
 
+The [comparability audit](COMPARABILITY.md) covers all five evolved A indexes, access boundaries, cutover semantics and latency accounting.
+
 ## Work completed during migration
 
 | Native macOS trial | Antfly v0.3.1 | LanceDB Embedded |

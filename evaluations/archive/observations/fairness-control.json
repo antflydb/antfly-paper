@@ -1,0 +1,500 @@
+{
+  "rows": 4096,
+  "dimension": 384,
+  "eligible_rows_per_query": 32,
+  "candidate_depth": 100,
+  "server_cpus": 4,
+  "server_memory_gib": 4,
+  "antfly_image": "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d",
+  "opensearch_image": "opensearchproject/opensearch@sha256:bbdf65cb3d35c61a8ba495f22c1a42d7d7f0df23412e3419bf1e6cfca3ba4774",
+  "runs": [
+    {
+      "round": 1,
+      "mode": "antfly_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0,
+        "api_key": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 80.78,
+            "p95_ms": 86.498,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 48.117,
+            "p95_ms": 60.296,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 48.661,
+            "p95_ms": 60.969,
+            "n": 64
+          }
+        },
+        "api_key": {
+          "write_batch": {
+            "p50_ms": 34.405,
+            "p95_ms": 39.272,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 1.221,
+            "p95_ms": 8.409,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 1.988,
+            "p95_ms": 6.637,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 1,
+      "mode": "antfly_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 33.455,
+            "p95_ms": 38.696,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 2.799,
+            "p95_ms": 18.352,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 5.452,
+            "p95_ms": 20.984,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 1,
+      "mode": "opensearch_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 64.741,
+            "p95_ms": 82.984,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 2.284,
+            "p95_ms": 3.888,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 2.46,
+            "p95_ms": 9.406,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 1,
+      "mode": "opensearch_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 67.324,
+            "p95_ms": 96.411,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 3.834,
+            "p95_ms": 5.12,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 4.074,
+            "p95_ms": 10.151,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 2,
+      "mode": "antfly_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 35.93,
+            "p95_ms": 43.104,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 0.963,
+            "p95_ms": 1.189,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 1.646,
+            "p95_ms": 1.877,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 2,
+      "mode": "opensearch_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 62.522,
+            "p95_ms": 73.962,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 2.299,
+            "p95_ms": 3.255,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 2.643,
+            "p95_ms": 8.544,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 2,
+      "mode": "opensearch_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 60.237,
+            "p95_ms": 81.6,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 3.15,
+            "p95_ms": 3.805,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 3.246,
+            "p95_ms": 12.759,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 2,
+      "mode": "antfly_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0,
+        "api_key": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 81.272,
+            "p95_ms": 83.414,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 48.953,
+            "p95_ms": 49.632,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 49.59,
+            "p95_ms": 50.133,
+            "n": 64
+          }
+        },
+        "api_key": {
+          "write_batch": {
+            "p50_ms": 33.452,
+            "p95_ms": 41.401,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 1.01,
+            "p95_ms": 1.16,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 1.734,
+            "p95_ms": 2.023,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 3,
+      "mode": "opensearch_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 60.494,
+            "p95_ms": 75.451,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 2.297,
+            "p95_ms": 3.176,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 2.567,
+            "p95_ms": 8.423,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 3,
+      "mode": "opensearch_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 61.262,
+            "p95_ms": 74.602,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 3.151,
+            "p95_ms": 4.098,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 3.414,
+            "p95_ms": 8.29,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 3,
+      "mode": "antfly_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0,
+        "api_key": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 80.542,
+            "p95_ms": 83.044,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 48.84,
+            "p95_ms": 49.403,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 49.402,
+            "p95_ms": 50.012,
+            "n": 64
+          }
+        },
+        "api_key": {
+          "write_batch": {
+            "p50_ms": 32.494,
+            "p95_ms": 36.338,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 0.995,
+            "p95_ms": 1.185,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 1.708,
+            "p95_ms": 2.002,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 3,
+      "mode": "antfly_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 32.811,
+            "p95_ms": 35.242,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 0.828,
+            "p95_ms": 0.965,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 1.484,
+            "p95_ms": 1.64,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 4,
+      "mode": "opensearch_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 60.343,
+            "p95_ms": 73.673,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 3.016,
+            "p95_ms": 3.835,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 3.279,
+            "p95_ms": 9.675,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 4,
+      "mode": "antfly_policy",
+      "minimum_membership_recall": {
+        "basic": 1.0,
+        "api_key": 1.0
+      },
+      "timing": {
+        "basic": {
+          "write_batch": {
+            "p50_ms": 82.157,
+            "p95_ms": 96.309,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 48.922,
+            "p95_ms": 49.94,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 49.674,
+            "p95_ms": 51.146,
+            "n": 64
+          }
+        },
+        "api_key": {
+          "write_batch": {
+            "p50_ms": 34.501,
+            "p95_ms": 45.452,
+            "n": 16
+          },
+          "lexical": {
+            "p50_ms": 1.083,
+            "p95_ms": 1.369,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 1.883,
+            "p95_ms": 2.256,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 4,
+      "mode": "antfly_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 33.58,
+            "p95_ms": 43.291,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 0.864,
+            "p95_ms": 1.125,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 1.523,
+            "p95_ms": 1.818,
+            "n": 64
+          }
+        }
+      }
+    },
+    {
+      "round": 4,
+      "mode": "opensearch_trusted",
+      "minimum_membership_recall": {
+        "application": 1.0
+      },
+      "timing": {
+        "application": {
+          "write_batch": {
+            "p50_ms": 61.948,
+            "p95_ms": 69.905,
+            "n": 32
+          },
+          "lexical": {
+            "p50_ms": 2.082,
+            "p95_ms": 2.821,
+            "n": 64
+          },
+          "dense": {
+            "p50_ms": 2.382,
+            "p95_ms": 6.36,
+            "n": 64
+          }
+        }
+      }
+    }
+  ]
+}

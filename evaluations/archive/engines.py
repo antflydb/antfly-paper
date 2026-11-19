@@ -4,10 +4,18 @@ import base64
 import io
 import json
 import os
+import secrets
 import time
 import zipfile
+from dataclasses import dataclass
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
+
+@dataclass(frozen=True, repr=False)
+class ApiKey:
+    key_id: str
+    key_secret: str
 
 
 def call(url, method, body=None, auth=None, content_type="application/json"):
@@ -20,7 +28,13 @@ def call(url, method, body=None, auth=None, content_type="application/json"):
     )
     headers = {"Content-Type": content_type}
     if auth:
-        headers["Authorization"] = "Basic " + base64.b64encode(auth.encode()).decode()
+        if isinstance(auth, ApiKey):
+            scheme, credential = "ApiKey", f"{auth.key_id}:{auth.key_secret}"
+        else:
+            scheme, credential = "Basic", auth
+        headers["Authorization"] = (
+            scheme + " " + base64.b64encode(credential.encode()).decode()
+        )
     try:
         with urlopen(
             Request(url, method=method, data=data, headers=headers), timeout=180
@@ -43,9 +57,12 @@ def filters(q):
 
 
 class OpenSearch:
-    def __init__(self, url, name):
+    def __init__(self, url, name, *, policy=False):
+        self.policy = policy
+        self.name = name
         self.url = url.rstrip("/") + "/" + name
         self.auth = os.environ.get("ARCHIVE_OS_AUTH")
+        self.readers = None
 
     def request(self, method, path, body=None):
         return call(self.url + path, method, body, self.auth)
@@ -77,6 +94,46 @@ class OpenSearch:
                 },
             },
         )
+
+        if self.policy:
+            self.create_readers()
+
+    def create_readers(self):
+        base = self.url.rsplit("/", 1)[0]
+        auth = self.auth
+        users = {}
+        for tenant in ("archive", "audit", "public"):
+            role = self.name + "_" + tenant
+            password = "Py!" + secrets.token_hex(20)
+            call(
+                base + "/_plugins/_security/api/roles/" + role,
+                "PUT",
+                {
+                    "cluster_permissions": [],
+                    "index_permissions": [
+                        {
+                            "index_patterns": [self.name],
+                            "allowed_actions": ["read"],
+                            "dls": json.dumps({"term": {"tenant": tenant}}),
+                        }
+                    ],
+                },
+                auth,
+            )
+            call(
+                base + "/_plugins/_security/api/internalusers/" + role,
+                "PUT",
+                {"password": password},
+                auth,
+            )
+            call(
+                base + "/_plugins/_security/api/rolesmapping/" + role,
+                "PUT",
+                {"users": [role]},
+                auth,
+            )
+            users[tenant] = role + ":" + password
+        self.readers = users
 
     def insert(self, rows):
         payload = "".join(
@@ -110,16 +167,21 @@ class OpenSearch:
         return {"rows": self.request("GET", "/_count")["count"]}
 
     def search(self, q, vector, mode, depth):
-        predicate = {
-            "bool": {"filter": [{"term": {k: v}} for k, v in filters(q).items()]}
-        }
+        terms = filters(q)
+        auth = self.auth
+        if self.readers is not None:
+            auth = self.readers[terms.pop("tenant")]
+        predicate = {"bool": {"filter": [{"term": {k: v}} for k, v in terms.items()]}}
         query = (
             {"bool": {"must": {"match": {"body": q["question"]}}, "filter": predicate}}
             if mode == "lexical"
             else {"knn": {"vec": {"vector": vector, "k": depth, "filter": predicate}}}
         )
-        r = self.request(
-            "POST", "/_search", {"query": query, "_source": ["page"], "size": depth}
+        r = call(
+            self.url + "/_search",
+            "POST",
+            {"query": query, "_source": ["page"], "size": depth},
+            auth,
         )
         if r["timed_out"] or r["_shards"]["failed"]:
             raise RuntimeError("incomplete OpenSearch response")
@@ -127,11 +189,14 @@ class OpenSearch:
 
 
 class Antfly:
-    def __init__(self, url, name, sync_level="full_index"):
+    def __init__(self, url, name, sync_level="full_index", *, access="basic"):
+        self.access = access
         self.sync_level = sync_level
         self.base, self.name = url.rstrip("/"), name
         self.path = "/db/v1/tables/" + name
-        self.admin = os.environ["ARCHIVE_ANTFLY_AUTH"]
+        self.admin = (
+            None if access == "application" else os.environ["ARCHIVE_ANTFLY_AUTH"]
+        )
         self.readers = {}
 
     @staticmethod
@@ -178,6 +243,16 @@ class Antfly:
         return schema
 
     def create(self, dim, *, evolved=False):
+        self.create_indexes(dim, evolved=evolved)
+        if self.access != "application":
+            self.create_readers()
+        if self.access == "api_key":
+            self.readers = {
+                t: self.api_key(v.split(":")[0]) for t, v in self.readers.items()
+            }
+            self.admin = self.api_key(self.admin.split(":")[0])
+
+    def create_indexes(self, dim, *, evolved):
         created = call(
             self.base + self.path,
             "POST",
@@ -196,8 +271,17 @@ class Antfly:
             },
             self.admin,
         )
-        import secrets
 
+    def api_key(self, owner):
+        r = call(
+            self.base + "/auth/v1/users/" + owner + "/api-keys",
+            "POST",
+            {"name": "archive-fairness"},
+            self.admin,
+        )
+        return ApiKey(r["key_id"], r["key_secret"])
+
+    def create_readers(self):
         for tenant in ("public", "archive", "audit"):
             login, password = self.name + tenant, secrets.token_hex(24)
             call(
@@ -286,13 +370,17 @@ class Antfly:
                 else {"term": {k: v}}
             )
             for k, v in filters(q).items()
-            if k != "tenant"
+            if k != "tenant" or self.access == "application"
         ]
         body = {
             "table": self.name,
             "limit": depth,
             "fields": ["page"],
-            "filter_query": terms[0] if terms else {"match_all": {}},
+            "filter_query": {"conjuncts": terms}
+            if len(terms) > 1
+            else terms[0]
+            if terms
+            else {"match_all": {}},
         }
         if profile:
             body["profile"] = True
@@ -300,9 +388,12 @@ class Antfly:
             body["full_text_search"] = {"match": q["question"], "field": "body"}
         else:
             body["embeddings"] = {"vec": vector}
-        r = call(self.base + "/db/v1/query", "POST", body, self.readers[q["tenant"]])[
-            "responses"
-        ][0]
+        r = call(
+            self.base + "/db/v1/query",
+            "POST",
+            body,
+            None if self.access == "application" else self.readers[q["tenant"]],
+        )["responses"][0]
         if r.get("status") != 200:
             raise RuntimeError(f"Antfly query failed {r.get('error')}")
         return r
@@ -511,12 +602,11 @@ class Pg:
         import psycopg
 
         self.writer = psycopg.connect(url, autocommit=True)
+        self.match_any_lexeme = False
         self.name = name
         self.readers = {}
 
     def create(self, dim):
-        import secrets
-
         import psycopg
         from psycopg import sql
         from psycopg.conninfo import make_conninfo
@@ -609,8 +699,12 @@ class Pg:
                 where += f" AND metadata -> '{k}' = %s"
                 args.append(Jsonb(v))
         if mode == "lexical":
-            where += " AND lex @@ websearch_to_tsquery('english',%s)"
-            order = "ts_rank_cd(lex,websearch_to_tsquery('english',%s)) DESC,id"
+            tsquery = "websearch_to_tsquery('english',%s)"
+            if self.match_any_lexeme:
+                tsquery = """(SELECT coalesce(string_agg(quote_literal(word), ' | '), '')::tsquery
+                              FROM unnest(tsvector_to_array(to_tsvector('english',%s))) AS words(word))"""
+            where += " AND lex @@ " + tsquery
+            order = f"ts_rank_cd(lex,{tsquery}) DESC,id"
             args.extend([q["question"], q["question"]])
         else:
             order = "vec <=> %s::vector"
