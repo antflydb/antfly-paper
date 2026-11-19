@@ -298,6 +298,16 @@ def main():
                 if "quality" in r
             ):
                 raise AssertionError(engine + " missed a planted page")
+            if engine == "antfly":
+                client(
+                    network,
+                    "filter_profile.py",
+                    "--endpoint",
+                    endpoint,
+                    "--out",
+                    "/out/numeric-filter.json",
+                    env=env,
+                )
             if engine in ("postgres", "antfly"):
                 graph_args = [
                     engine,

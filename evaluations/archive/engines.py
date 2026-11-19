@@ -134,8 +134,57 @@ class Antfly:
         self.admin = os.environ["ARCHIVE_ANTFLY_AUTH"]
         self.readers = {}
 
-    def create(self, dim):
-        call(self.base + self.path, "POST", {"num_shards": 1}, self.admin)
+    @staticmethod
+    def schema(evolved):
+        numeric = {
+            "type": "integer",
+            "x-antfly-field": {"type": "number", "sortable": True},
+        }
+        keyword = {"type": "string", "x-antfly-field": {"type": "keyword"}}
+        fields = {
+            "body": {"type": "string", "x-antfly-field": {"type": "text"}},
+            "tenant": keyword,
+            "collection_code": keyword,
+            "review_band": numeric,
+        }
+        if evolved:
+            fields["retention_years"] = {
+                "type": "integer",
+                "x-antfly-field": {
+                    "type": "number",
+                    "sortable": True,
+                    "missing_null_policy": "nulls_ordered",
+                },
+            }
+        schema = {
+            "default_type": "default",
+            "document_schemas": {
+                "default": {
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "properties": fields,
+                    }
+                }
+            },
+        }
+
+        if evolved:
+            # The nullable sort column proves coverage even for rows without retention.
+            schema["index_sort"] = [
+                {"field": "retention_years", "order": "asc"},
+                {"field": "_id", "order": "asc"},
+            ]
+        return schema
+
+    def create(self, dim, *, evolved=False):
+        created = call(
+            self.base + self.path,
+            "POST",
+            {"num_shards": 1, "schema": self.schema(evolved)},
+            self.admin,
+        )
+        self.text_index = self.full_text_index(created)
         call(
             self.base + self.path + "/indexes/vec",
             "POST",
@@ -194,9 +243,13 @@ class Antfly:
     def finish(self):
         pass
 
+    @staticmethod
+    def full_text_index(table):
+        return "full_text_index_v" + str(table["schema"]["version"])
+
     def indexed_counts(self):
         counts = {}
-        for name in ("full_text_index_v0", "vec"):
+        for name in (self.text_index, "vec"):
             response = call(
                 self.base + self.path + "/indexes/" + name, "GET", auth=self.admin
             )
@@ -205,9 +258,19 @@ class Antfly:
         return counts
 
     def evolve(self):
-        pass  # Flexible documents accept the new typed value on write.
+        table = call(
+            self.base + self.path + "/schema", "PUT", self.schema(True), self.admin
+        )
+        target = self.full_text_index(table)
+        deadline = time.monotonic() + 3600
+        while table.get("migration") or self.full_text_index(table) != target:
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Antfly schema publication: " + target)
+            time.sleep(1)
+            table = call(self.base + self.path, "GET", auth=self.admin)
+        self.text_index = target
 
-    def search(self, q, vector, mode, depth):
+    def query(self, q, vector, mode, depth, *, profile=False):
         terms = [
             (
                 {
@@ -229,6 +292,8 @@ class Antfly:
             "fields": ["page"],
             "filter_query": terms[0] if terms else {"match_all": {}},
         }
+        if profile:
+            body["profile"] = True
         if mode == "lexical":
             body["full_text_search"] = {"match": q["question"], "field": "body"}
         else:
@@ -238,6 +303,10 @@ class Antfly:
         ][0]
         if r.get("status") != 200:
             raise RuntimeError(f"Antfly query failed {r.get('error')}")
+        return r
+
+    def search(self, q, vector, mode, depth):
+        r = self.query(q, vector, mode, depth)
         return [(x["_id"], x["_source"]["page"]) for x in r["hits"]["hits"]]
 
 

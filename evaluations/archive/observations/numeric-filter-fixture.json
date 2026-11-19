@@ -1,0 +1,30 @@
+{
+  "evolved": {
+    "rows": 640,
+    "eligible_rows": 16,
+    "channels": {
+      "lexical": {
+        "candidates": 16,
+        "median_seconds": 0.05085345900079119
+      },
+      "dense": {
+        "candidates": 16,
+        "median_seconds": 0.049925125000299886
+      }
+    }
+  },
+  "fresh": {
+    "rows": 640,
+    "eligible_rows": 16,
+    "channels": {
+      "lexical": {
+        "candidates": 16,
+        "median_seconds": 0.050575376000779215
+      },
+      "dense": {
+        "candidates": 16,
+        "median_seconds": 0.04967591700005869
+      }
+    }
+  }
+}

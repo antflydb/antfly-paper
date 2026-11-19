@@ -271,8 +271,11 @@ def main():
     with ThreadPoolExecutor(1) as pool:
         future = pool.submit(traffic)
         try:
-            b.create(len(first["b"]))
-            b.evolve()
+            if isinstance(b, Antfly):
+                b.create(len(first["b"]), evolved=True)
+            else:
+                b.create(len(first["b"]))
+                b.evolve()
             completed = load(
                 b,
                 chunks,
@@ -358,6 +361,8 @@ def main():
         )
         + "; controller selects generation",
     }
+    if isinstance(b, Antfly):
+        receipt["antfly_evolved_schema"] = b.schema(evolved=True)
     (args.out / "result.json").write_text(json.dumps(receipt, indent=2))
     missed = max(0, receipt["scheduled_arrivals"] - len(observed))
     return int(

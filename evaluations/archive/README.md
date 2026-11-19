@@ -17,11 +17,13 @@ The matched retrieval runner builds an A index, exercises the initial tenant sch
 
 | Engine | Schema and serving path | Tenant enforcement |
 | --- | --- | --- |
-| Antfly v0.3.1 | Flexible documents, full text and external vectors, default search effort | Separate authenticated readers with native row filters |
+| Antfly v0.3.1 | Flexible documents, typed metadata, nullable physical sort on retention years, full text and external vectors at default search effort | Separate authenticated readers with native row filters |
 | PostgreSQL + pgvector | JSONB metadata with expression indexes, generated tsvector with GIN, HNSW with iterative scan | Distinct non-owner login roles under RLS |
 | OpenSearch | Explicit typed mappings, BM25, filtered Lucene HNSW | Trusted adapter supplies the filter |
 | Vespa | Typed application schemas, BM25 and nearest-neighbor rank profiles | Trusted adapter supplies the filter |
 | LanceDB Embedded | Arrow schema evolution, native FTS, cosine vector search, IVF_FLAT for larger tables | Trusted SDK application supplies the prefilter |
+
+Antfly promotes the optional integer `retention_years` when the schema evolves. The evolved schema declares numeric doc values with `missing_null_policy: nulls_ordered` and physically sorts by `(retention_years, _id)`. Rows without retention keep the field absent. A waits for schema publication before updating existing rows. B starts with the evolved schema. The matched query still uses the authenticated tenant policy, an inclusive numeric range, and the configured candidate depth. The Antfly qualification writes 640 rows with absent fields and cross-tenant distractors, and verifies the complete 16 eligible row IDs, empty matches, and native candidate counts in both generations. Elapsed times are reported separately from these assertions.
 
 The graph arm reads the same PDFs through a shared frontend. It checks a strong ETag before accepting bytes, rejects a stale conditional GET on replacement, routes scanned pages to Florence and born-digital pages to PDFium, and extracts the authored payment relations with a small deterministic vocabulary. Hybrid retrieval seeds a two-hop native Antfly graph query or indexed PostgreSQL joins. The page-level oracle checks two independent supports, correction and revocation at an intermediate vertex for two authenticated readers. Each reader's complete returned set must agree with the oracle. The frontend owns source-version changes in this arm. The database owns traversal and access control. Separate native [alias and write-barrier](../native-contracts/README.md) and [durable outbox](../head-to-head/README.md) instruments exercise generation pinning, held responses, crashes and replay.
 
