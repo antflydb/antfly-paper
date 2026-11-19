@@ -9,6 +9,8 @@ import uuid
 from contextlib import ExitStack
 from pathlib import Path
 
+from filter_profile import verify_ranking_passes
+
 ROOT = Path(__file__).resolve().parents[2]
 ANT = "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d"
 PG = "pgvector/pgvector@sha256:ab49524d18df7200b74ac9a475e1db6297fc1eb57da4c214c63d10ecc4b754fa"
@@ -106,6 +108,16 @@ def main():
                     "none",
                     "-e",
                     "ANTFLY_BOOTSTRAP_ADMIN_PASSWORD=" + password,
+                    *(
+                        [
+                            "-e",
+                            "ANTFLY_BENCH_QUERY_PROFILE=1",
+                            "-e",
+                            "ANTFLY_BENCH_QUERY_PROFILE_EVERY=1",
+                        ]
+                        if not args.corpus
+                        else []
+                    ),
                     ANT,
                     "standalone",
                     "--host",
@@ -308,6 +320,14 @@ def main():
                     "/out/numeric-filter.json",
                     env=env,
                 )
+                trace = docker(
+                    "logs",
+                    server,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                ).stdout
+                verify_ranking_passes(args.out / "numeric-filter.json", trace)
             if engine in ("postgres", "antfly"):
                 graph_args = [
                     engine,

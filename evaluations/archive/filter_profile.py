@@ -43,7 +43,12 @@ def qualify(endpoint, *, fresh):
         "tenant": "archive",
         "filter": {"field": "retention_years", "equals": 6},
     }
-    receipt = {"rows": len(rows), "eligible_rows": len(expected), "channels": {}}
+    receipt = {
+        "index": engine.text_index,
+        "rows": len(rows),
+        "eligible_rows": len(expected),
+        "channels": {},
+    }
     for mode in ("lexical", "dense"):
         timings = []
         for _ in range(3):
@@ -73,6 +78,29 @@ def qualify(endpoint, *, fresh):
             "median_seconds": statistics.median(timings),
         }
     return receipt
+
+
+def verify_ranking_passes(path, trace):
+    """Read the release's native counter after both disposable tables finish."""
+    results = json.loads(path.read_text())
+    for arm in results.values():
+        passes = []
+        for line in trace.splitlines():
+            if "antfly_bench_text_query " not in line:
+                continue
+            fields = dict(token.split("=", 1) for token in line.split() if "=" in token)
+            if (
+                fields["index"] == arm["index"]
+                and int(fields["snapshot_docs"]) == arm["rows"]
+                and int(fields["hits"]) == arm["eligible_rows"]
+            ):
+                passes.append(int(fields["candidate_iterations"]))
+        if passes != [1, 1, 1]:
+            raise ValueError(
+                f"expected three single-pass lexical profiles, observed {passes}"
+            )
+        arm["channels"]["lexical"]["ranking_passes"] = passes
+    path.write_text(json.dumps(results, indent=2) + "\n")
 
 
 if __name__ == "__main__":
