@@ -41,6 +41,16 @@ The corpus has 1,435 PDFs, 118,524 physical pages, 90 original questions and 823
 
 Hybrid retrieval produced the highest mean recall in each trial. Giving each original question equal weight, the paired Antfly-minus-LanceDB hybrid recall difference was +1.22 percentage points for A (95% bootstrap interval −0.97 to +3.82) and +1.62 for B (−0.64 to +4.07). Both intervals include zero. The intervals resample the 90 original questions and quantify question variation. Each timing comes from one machine run per engine. Antfly enforced the tenant restriction with authenticated database readers. LanceDB used the trusted application's prefilter. [All quality cells, paired intervals and one-minute migration series](observations/officeqa-native-summary.json)
 
+## Original questions without the tenant overlay
+
+For the 90 original questions, the reader can search all public pages. Generation-A hybrid recall@20 was 14.17% for Antfly and 14.06% for LanceDB. Each system returned every cited page for 4 of 90 questions. This measures retrieval of the citations supplied by the dataset. End-to-end answer accuracy requires running the reader and scoring its answer. [Original-question scores](observations/officeqa-original-recall.json)
+
+| Channel | Antfly recall@20 | LanceDB recall@20 |
+| --- | ---: | ---: |
+| Lexical | 10.99% | 11.02% |
+| Dense | 7.85% | 8.48% |
+| Hybrid | 14.17% | 14.06% |
+
 ## Scope of the other evidence
 
 | Evidence | Coverage and interpretation |

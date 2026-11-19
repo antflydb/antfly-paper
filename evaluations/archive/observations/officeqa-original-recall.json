@@ -1,0 +1,58 @@
+[
+  {
+    "engine": "antfly",
+    "source": "publisher",
+    "receipt_sha256": "42a585b075e7924bc6fafed22514f74c6edc2aa571f4c69b2cbba38ac6e23e39",
+    "scores": {
+      "lexical": {
+        "k": 20,
+        "queries": 90,
+        "recall": 0.10989410281076947,
+        "complete": 0.044444444444444446,
+        "ineligible": 0
+      },
+      "dense": {
+        "k": 20,
+        "queries": 90,
+        "recall": 0.07853946797574249,
+        "complete": 0.022222222222222223,
+        "ineligible": 0
+      },
+      "hybrid": {
+        "k": 20,
+        "queries": 90,
+        "recall": 0.14168706747138118,
+        "complete": 0.044444444444444446,
+        "ineligible": 0
+      }
+    }
+  },
+  {
+    "engine": "lance",
+    "source": "publisher",
+    "receipt_sha256": "76fe079875723681595344f10acae35391acf55a37d5acb07f214d6585ddbea8",
+    "scores": {
+      "lexical": {
+        "k": 20,
+        "queries": 90,
+        "recall": 0.11015953182619849,
+        "complete": 0.044444444444444446,
+        "ineligible": 0
+      },
+      "dense": {
+        "k": 20,
+        "queries": 90,
+        "recall": 0.08478726339020456,
+        "complete": 0.022222222222222223,
+        "ineligible": 0
+      },
+      "hybrid": {
+        "k": 20,
+        "queries": 90,
+        "recall": 0.14062425682523721,
+        "complete": 0.044444444444444446,
+        "ineligible": 0
+      }
+    }
+  }
+]
