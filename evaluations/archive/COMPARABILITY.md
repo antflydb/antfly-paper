@@ -61,3 +61,26 @@ Cells are medians of four trial statistics. Basic credentials added about 49 ms 
 The full-size lexical trace includes time spent inside the engine. The matched Linux trials measure how much of that cost persists under comparable deployment and access settings. [Full-size trace](observations/officeqa-retention-profile.json)
 
 The [matched OfficeQA follow-up report](observations/officeqa-matched-followups.md) covers two reverse-order Linux trials per access configuration using frozen B vectors. A separate PostgreSQL trial repeats fresh B inference and compares the original lexical parser with a disjunctive search after timing. Both retain all 408 questions and filter variants for scoring.
+
+### Why one filtered lexical query took 303 ms
+
+On the restored 616,832-row A index, question 86 contains 100 whitespace-delimited words. With an API key, the original row policy, six-year retention and 100 requested hits, the native lexical executor took 303.72 ms. The entire engine trace took 304.51 ms. Medians cover seven randomly ordered rounds following two warmups. [Aggregate receipts](observations/officeqa-lexical-diagnosis.json)
+
+| Change to that request | Median native execution |
+| --- | ---: |
+| Return the first hit only | 299.07 ms |
+| Use the first 16 words, return 100 hits | 50.76 ms |
+| Use the first / second 50 words, return 100 hits | 171.78 / 176.46 ms |
+| Remove duplicate whitespace-delimited words, return 100 hits | 306.57 ms |
+
+The 69-word deduplicated version returned the same 100 IDs in the same order. Shortening to either half changed the ranking. The paper workload uses the complete question.
+
+A second experiment held the full question and top-one result fixed. Each request intersected the existing tenant and retention restrictions with either the best one, 20, or 100 IDs from the original answer. The trace confirmed the input cardinality at the ranker. Median execution times over nine measured rounds were **295 / 298 / 299 ms**, respectively. With all 59,273 eligible IDs the median was **301 ms**. A constant-score match-all control over those same 59,273 IDs took **19 ms**. One exploratory repetition overlapped heavy compilation on the host and had unstable wall times. The nine-round repeat independently recorded server CPU, which was 318 ms with one eligible ID and 317 ms with all 59,273.
+
+A separate run of the linked replay script combined all 11 arms and verified every expected rank prefix. The full top-100 request took 323 ms in execution, the one-eligible-row request took 321 ms, and the first-16-word request took 53 ms.
+
+The release passes the native positive filter to search as a sorted list of document numbers. The scorer's candidate-selection step uses bitmap restrictions to advance. Its later collector checks the list when admitting an already scored candidate. This identifies an opportunity to skip scoring excluded rows earlier. The share of the 303 ms that an implementation can recover requires a patched replay with identical scores, ranks and tenant membership. [Storage handoff](https://github.com/antflydb/antfly/blob/v0.3.1/zig/pkg/antfly-embedded/src/storage/db/query/search_exec.zig#L13869-L13887) · [Candidate selection](https://github.com/antflydb/antfly/blob/v0.3.1/zig/pkg/antfly-embedded/src/search/search.zig#L1986-L2004) · [Result admission](https://github.com/antflydb/antfly/blob/v0.3.1/zig/pkg/antfly-embedded/src/search/search.zig#L2088-L2124)
+
+The original during-migration traffic shows the same trend across the workload. Grouping 408 variants by question length (26–50, 51–75, and 76 or more words) gives 88, 155 and 165 variants. Within each variant we took the median lexical request time, then took the median across variants in the group. Antfly recorded 156, 200 and 248 ms. The corresponding OpenSearch values were 6.1, 6.9 and 7.6 ms under its original deployment. These are descriptive workload measurements.
+
+To replay the controls, start a dedicated restored release server with `ANTFLY_BENCH_QUERY_PROFILE=1` and `ANTFLY_BENCH_QUERY_PROFILE_EVERY=1`. Supply an API key for the archive reader through `ARCHIVE_PROFILE_KEY_ID` and `ARCHIVE_PROFILE_KEY_SECRET`. Run `python3 lexical_profile.py --endpoint <url> --table <restored-A> --queries <queries.json> --query-id 86:archive:after-schema-change:1 --trace <server.log> --out <new-result.json>` after the restored shard is ready. The runner checks the rank prefix and native filter counts, and writes aggregate measurements. [Replay script](lexical_profile.py)

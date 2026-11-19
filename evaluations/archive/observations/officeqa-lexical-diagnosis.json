@@ -1,0 +1,184 @@
+{
+  "release": "v0.3.1",
+  "snapshot_rows": 616832,
+  "query_variant": "86:archive:after-schema-change:1",
+  "query_words": 100,
+  "eligible_rows": 59273,
+  "term_and_limit_controls": {
+    "warmup_rounds_excluded": 2,
+    "measured_rounds": 7,
+    "private_receipt_sha256": "d1fd2012ab0015cd4ef82b206f997fa4af922bc155343a114d654ac53c01f135",
+    "medians": {
+      "first50/100": {
+        "execute_ms": 171.776,
+        "engine_ms": 173.098,
+        "client_ms": 181.371
+      },
+      "first16/100": {
+        "execute_ms": 50.761,
+        "engine_ms": 51.596,
+        "client_ms": 59.405
+      },
+      "full/1": {
+        "execute_ms": 299.067,
+        "engine_ms": 299.281,
+        "client_ms": 306.62
+      },
+      "full/20": {
+        "execute_ms": 302.353,
+        "engine_ms": 302.727,
+        "client_ms": 310.363
+      },
+      "second50/100": {
+        "execute_ms": 176.457,
+        "engine_ms": 177.654,
+        "client_ms": 185.899
+      },
+      "unique/100": {
+        "execute_ms": 306.566,
+        "engine_ms": 307.345,
+        "client_ms": 315.591
+      },
+      "full/100": {
+        "execute_ms": 303.719,
+        "engine_ms": 304.509,
+        "client_ms": 312.701
+      }
+    }
+  },
+  "eligibility_controls": {
+    "warmup_rounds_excluded": 2,
+    "measured_rounds": 9,
+    "private_receipt_sha256": "3834f710996a72fcbe26b73a633bd9099c4a9275001089c452f8c9a7e692ca6a",
+    "cpu_clock": "Difference in process user + system proc_pid_rusage ticks across a request, converted with this machine’s mach timebase 125/3 ns per tick. Includes all server threads.",
+    "medians": {
+      "top20": {
+        "execute_ms": 297.968,
+        "client_ms": 321.867,
+        "server_cpu_ms": 328.951,
+        "allowed_docs": 20
+      },
+      "top1": {
+        "execute_ms": 294.773,
+        "client_ms": 312.058,
+        "server_cpu_ms": 318.089,
+        "allowed_docs": 1
+      },
+      "top100": {
+        "execute_ms": 298.528,
+        "client_ms": 326.431,
+        "server_cpu_ms": 337.358,
+        "allowed_docs": 100
+      },
+      "match_all": {
+        "execute_ms": 19.304,
+        "client_ms": 27.038,
+        "server_cpu_ms": 30.573,
+        "allowed_docs": 59273
+      },
+      "all_eligible": {
+        "execute_ms": 301.492,
+        "client_ms": 309.21,
+        "server_cpu_ms": 317.335,
+        "allowed_docs": 59273
+      }
+    }
+  },
+  "integrated_replay": {
+    "query_id": "86:archive:after-schema-change:1",
+    "words": 100,
+    "distinct_lowercase_words": 69,
+    "warmup_rounds_excluded": 2,
+    "measured_rounds": 7,
+    "cells": {
+      "full_100": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 333.263,
+        "engine_ms": 324.072,
+        "execute_ms": 322.876,
+        "same_ordered_ids_as_full_prefix": true
+      },
+      "full_20": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 368.764,
+        "engine_ms": 360.576,
+        "execute_ms": 360.137,
+        "same_ordered_ids_as_full_prefix": true
+      },
+      "full_1": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 394.658,
+        "engine_ms": 385.961,
+        "execute_ms": 385.677,
+        "same_ordered_ids_as_full_prefix": true
+      },
+      "first16": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 63.193,
+        "engine_ms": 54.724,
+        "execute_ms": 52.969,
+        "same_ordered_ids_as_full_prefix": false
+      },
+      "first50": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 196.482,
+        "engine_ms": 185.452,
+        "execute_ms": 183.477,
+        "same_ordered_ids_as_full_prefix": false
+      },
+      "second50": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 203.902,
+        "engine_ms": 194.648,
+        "execute_ms": 192.388,
+        "same_ordered_ids_as_full_prefix": false
+      },
+      "unique": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 334.592,
+        "engine_ms": 325.048,
+        "execute_ms": 324.199,
+        "same_ordered_ids_as_full_prefix": true
+      },
+      "allow_1": {
+        "allowed": 1,
+        "rows": 616832,
+        "client_ms": 339.477,
+        "engine_ms": 321.187,
+        "execute_ms": 321.017,
+        "same_ordered_ids_as_full_prefix": true
+      },
+      "allow_20": {
+        "allowed": 20,
+        "rows": 616832,
+        "client_ms": 350.184,
+        "engine_ms": 324.788,
+        "execute_ms": 324.644,
+        "same_ordered_ids_as_full_prefix": true
+      },
+      "allow_100": {
+        "allowed": 100,
+        "rows": 616832,
+        "client_ms": 349.158,
+        "engine_ms": 319.593,
+        "execute_ms": 319.413,
+        "same_ordered_ids_as_full_prefix": true
+      },
+      "match_all": {
+        "allowed": 59273,
+        "rows": 616832,
+        "client_ms": 28.192,
+        "engine_ms": 20.158,
+        "execute_ms": 19.767,
+        "same_ordered_ids_as_full_prefix": false
+      }
+    }
+  }
+}
