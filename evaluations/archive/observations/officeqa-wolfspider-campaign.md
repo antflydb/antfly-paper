@@ -6,7 +6,7 @@ PostgreSQL, OpenSearch and Vespa run serially as pinned ARM64 containers in a 6-
 
 | Engine | Rows in B | B ready (min) | Cutover (ms) | A p95 before / during (ms) | Arrivals | Missing / errors | Ineligible | A hybrid recall@20 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| postgres | Awaiting receipt | | | | | | | |
+| postgres | Run ended without a complete receipt | | | | | | | |
 | opensearch | Awaiting receipt | | | | | | | |
 | vespa | Awaiting receipt | | | | | | | |
 
