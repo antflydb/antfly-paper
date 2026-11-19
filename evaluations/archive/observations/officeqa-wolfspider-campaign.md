@@ -8,11 +8,12 @@ PostgreSQL, OpenSearch and Vespa run serially as pinned ARM64 containers in a 6-
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | postgres | Run ended without a complete receipt | | | | | | | |
 | opensearch | 616,832 | 93.02 | 16 | 192 / 160 | 11,163 | 0 / 0 | 0 | 20.37% |
-| vespa | Awaiting receipt | | | | | | | |
+| vespa | 616,832 | 122.95 | 16 | 201 / 159 | 14,754 | 0 / 0 | 0 | 15.43% |
 
 Full receipt SHA-256 digests
 
 - opensearch `638e427c1f48d606011c8b245a31c2619c9a596957d150b234ea81ef9fd12a10`
+- vespa `1a24ca891ad1fe7ac60317957d95da92554694fc94d09106a6735546bb8d1a54`
 
 ## Raw PDFs and original questions
 
