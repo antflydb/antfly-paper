@@ -157,3 +157,34 @@ The [three-source release check](observations/lighton-ingestion-fixture.json) in
 For the application corpus, pass `--ocr-model lightonai/LightOnOCR-3-0.8B:safetensors@36d8636925327c671bd8e479c517a004f7566bd9` to `corpus.py` with a fresh output directory. Per-document checkpoints retain measured prompt and completion tokens with reporting coverage, declared unmeasured allowances, submitted pixels, OCR calls and wall time. The native receipt records attempted, selected, retained and failed OCR pages plus emitted units and chunks. The v0.3.1 native manifest does not expose equivalent token counts. Compare time from source submission through publication separately from time inside individual model calls. The fixture's timings include polling and warm-up effects.
 
 For implementation effort, compare the application-owned steps, the running processes, and the checked-in configuration for the same requirements. Exclude dataset acquisition, assertions and measurement code on both sides. The matched application frontend here is one reference implementation shared across engines. Its size does not establish a minimum for PostgreSQL, OpenSearch, Vespa or LanceDB.
+
+### PDF page-image to passage-index qualification
+
+The public fixture uses the same EmbeddingGemma 2 model identity and 768-dimensional query vector for both generations. Three single-page PDFs include a scan and a page long enough for two chunks. During B backfill the client corrects the scan and moves a second source outside a reader's tenant. An API-key reader searches the live alias until the compare-and-swap completes. A fourth, two-page PDF checks page attribution after cutover. A separate control renders PNGs in the application and lets Antfly embed the images. This control uses one physical page per source row.
+
+Use a fresh local v0.3.1 standalone on the same machine as the fixture, with both model bundles installed in its models directory. The run creates two disposable tables and two readers. The native leg fetches PDF URLs directly. The control uses PDFium at 144 DPI. The fixture dependencies are `pypdfium2==4.30.0` and `pillow==13.0.0`.
+
+```sh
+export ANTFLY_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+export ARCHIVE_ANTFLY_AUTH="admin:$ANTFLY_BOOTSTRAP_ADMIN_PASSWORD"
+export ANTFLY_MODELS_DIR="${ANTFLY_MODELS_DIR:-$HOME/.antfly/inference/models}"
+antfly inference pull hf:google/embeddinggemma-2:bf16-safetensors-bundle-v1 --models-dir "$ANTFLY_MODELS_DIR"
+antfly inference pull hf:lightonai/LightOnOCR-3-0.8B:safetensors@36d8636925327c671bd8e479c517a004f7566bd9 --models-dir "$ANTFLY_MODELS_DIR"
+state="$(mktemp -d)"
+cat > "$state/config.json" <<'JSON'
+{"public_inference":{"enabled":true},"remote_content":{"security":{"allowed_hosts":["127.0.0.1"],"block_private_ips":false}}}
+JSON
+antfly standalone --host 127.0.0.1 --port 38725 --auth true --health false \
+  --config "$state/config.json" --models-dir "$ANTFLY_MODELS_DIR" \
+  --data-dir "$state/db" --inference-scratch-budget-mb 6144 > "$state/server.log" 2>&1 &
+server_pid=$!
+trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+curl --retry 30 --retry-connrefused --retry-delay 1 -fsS -u "$ARCHIVE_ANTFLY_AUTH" \
+  http://127.0.0.1:38725/db/v1/tables > /dev/null
+uv run --with pypdfium2==4.30.0 --with pillow==13.0.0 python pdf_vector_migration.py \
+  --endpoint http://127.0.0.1:38725 --out "$state/qualification"
+```
+
+The client writes per-leg JSON receipts. A failed behavioral check gives a nonzero exit even if the database reports complete vector coverage. Fixture timings include model warm-up effects and use a single closed-loop reader. Use the archive campaign for matched latency comparisons.
+
+For the full representation comparison, the admission condition is that a tenant-scoped query on each serving generation returns the expected physical page. Score dense retrieval first on the same 90 questions, filters, and 20-distinct-page budget, then score hybrid retrieval on B. Record rendered pages, OCR calls and reported tokens, chunks, vectors, storage, backfill time, query latency and cutover separately. Include application rendering, OCR and indexing costs for each engine. Keep the publisher-text encoder replacement as a separate experiment.
