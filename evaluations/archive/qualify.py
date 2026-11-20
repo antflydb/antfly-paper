@@ -40,7 +40,16 @@ def main():
         type=Path,
         help="root with both BAAI models for true native and durable-outbox migration",
     )
+    p.add_argument(
+        "--pdf-inputs",
+        type=Path,
+        help="shared inputs.json from pdf_vector_compare.py prepare",
+    )
     args = p.parse_args()
+    if args.pdf_inputs and any(
+        (args.corpus, args.workload, args.managed_weights, args.ocr_weights)
+    ):
+        p.error("--pdf-inputs selects the separate page-image to passage fixture")
     if bool(args.corpus) != bool(args.workload):
         p.error("--corpus and --workload must be supplied together")
     if args.corpus and args.ocr_weights:
@@ -70,7 +79,11 @@ def main():
             *argv,
         )
 
-    if args.corpus:
+    if args.pdf_inputs:
+        mount.extend(
+            ["-v", f"{args.pdf_inputs.resolve(strict=True)}:/pdf-inputs.json:ro"]
+        )
+    elif args.corpus:
         mount.extend(
             [
                 "-v",
@@ -115,7 +128,7 @@ def main():
                             "-e",
                             "ANTFLY_BENCH_QUERY_PROFILE_EVERY=1",
                         ]
-                        if not args.corpus
+                        if not args.corpus and not args.pdf_inputs
                         else []
                     ),
                     ANT,
@@ -187,6 +200,21 @@ def main():
                     time.sleep(1)
                 else:
                     raise TimeoutError(engine + " readiness")
+            if args.pdf_inputs:
+                client(
+                    network,
+                    "pdf_vector_compare.py",
+                    "run",
+                    engine,
+                    "--inputs",
+                    "/pdf-inputs.json",
+                    "--endpoint",
+                    endpoint,
+                    "--out",
+                    "/out/" + engine + ".json",
+                    env=env,
+                )
+                continue
             client(
                 network,
                 "compare.py",

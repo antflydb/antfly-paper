@@ -1,0 +1,275 @@
+{
+  "scope": "public fixture, shared worker and application route",
+  "inputs_sha256": "b8a084e638ad33bff0bec7a51564e99aa5ab938bff0ae6b2db75d2f79ed4ae65",
+  "model": "google/embeddinggemma-2:bf16-safetensors-bundle-v1",
+  "reader": "lightonai/LightOnOCR-3-0.8B:safetensors@36d8636925327c671bd8e479c517a004f7566bd9",
+  "preparation": {
+    "application_render_seconds_all_versions": 0.06042312493082136,
+    "ocr": {
+      "ocr_calls": 2,
+      "ocr_wall_ms": 4902,
+      "ocr_submitted_pixels": 4210050,
+      "ocr_prompt_tokens": 4188,
+      "ocr_prompt_tokens_reported_calls": 2,
+      "ocr_completion_tokens": 41,
+      "ocr_completion_tokens_reported_calls": 2
+    },
+    "chunker": "160 words per physical page, zero overlap",
+    "image_dpi": 144
+  },
+  "deployment": "Local macOS arm64 client, four disposable Linux containers in Colima and native LanceDB 0.41.0. Preparation used released Antfly 0.3.1 on Metal.",
+  "runs": [
+    {
+      "engine": "antfly",
+      "inputs_sha256": "b8a084e638ad33bff0bec7a51564e99aa5ab938bff0ae6b2db75d2f79ed4ae65",
+      "model_identity": "7c034a322f810a719cc3183d82c71e902f9a5588722cdf585dc6065849d43b78",
+      "policy": "database",
+      "cutover": "application route",
+      "indexed_before_extra_source": {
+        "a": {
+          "full_text_index_v0": 3,
+          "vec": 3
+        },
+        "b": {
+          "full_text_index_v0": 4,
+          "vec": 4
+        }
+      },
+      "a_dense": [
+        "long.pdf#page=1",
+        "appendix.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_dense": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_hybrid": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_correction": [
+        "ledger.pdf#page=1"
+      ],
+      "b_old_term": [],
+      "b_multipage": [
+        "two.pdf#page=2",
+        "long.pdf#page=1",
+        "two.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "live_a": {
+        "served": 11
+      },
+      "checks": {
+        "visual_top": true,
+        "passage_top": true,
+        "hybrid_top": true,
+        "corrected_scan": true,
+        "cutover_scope": true,
+        "live_a": true,
+        "physical_page_two": true
+      }
+    },
+    {
+      "engine": "postgres",
+      "inputs_sha256": "b8a084e638ad33bff0bec7a51564e99aa5ab938bff0ae6b2db75d2f79ed4ae65",
+      "model_identity": "7c034a322f810a719cc3183d82c71e902f9a5588722cdf585dc6065849d43b78",
+      "policy": "database",
+      "cutover": "application route",
+      "indexed_before_extra_source": {
+        "a": {
+          "rows": 3
+        },
+        "b": {
+          "rows": 4
+        }
+      },
+      "a_dense": [
+        "long.pdf#page=1",
+        "appendix.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_dense": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_hybrid": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_correction": [
+        "ledger.pdf#page=1"
+      ],
+      "b_old_term": [],
+      "b_multipage": [
+        "two.pdf#page=2",
+        "long.pdf#page=1",
+        "two.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "live_a": {
+        "served": 1
+      },
+      "checks": {
+        "visual_top": true,
+        "passage_top": true,
+        "hybrid_top": true,
+        "corrected_scan": true,
+        "cutover_scope": true,
+        "live_a": true,
+        "physical_page_two": true
+      }
+    },
+    {
+      "engine": "opensearch",
+      "inputs_sha256": "b8a084e638ad33bff0bec7a51564e99aa5ab938bff0ae6b2db75d2f79ed4ae65",
+      "model_identity": "7c034a322f810a719cc3183d82c71e902f9a5588722cdf585dc6065849d43b78",
+      "policy": "application predicate",
+      "cutover": "application route",
+      "indexed_before_extra_source": {
+        "a": {
+          "rows": 3
+        },
+        "b": {
+          "rows": 4
+        }
+      },
+      "a_dense": [
+        "long.pdf#page=1",
+        "appendix.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_dense": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_hybrid": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_correction": [
+        "ledger.pdf#page=1"
+      ],
+      "b_old_term": [],
+      "b_multipage": [
+        "two.pdf#page=2",
+        "long.pdf#page=1",
+        "two.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "live_a": {
+        "served": 3
+      },
+      "checks": {
+        "visual_top": true,
+        "passage_top": true,
+        "hybrid_top": true,
+        "corrected_scan": true,
+        "cutover_scope": true,
+        "live_a": true,
+        "physical_page_two": true
+      }
+    },
+    {
+      "engine": "vespa",
+      "inputs_sha256": "b8a084e638ad33bff0bec7a51564e99aa5ab938bff0ae6b2db75d2f79ed4ae65",
+      "model_identity": "7c034a322f810a719cc3183d82c71e902f9a5588722cdf585dc6065849d43b78",
+      "policy": "application predicate",
+      "cutover": "application route",
+      "indexed_before_extra_source": {
+        "a": {
+          "rows": 3
+        },
+        "b": {
+          "rows": 4
+        }
+      },
+      "a_dense": [
+        "long.pdf#page=1",
+        "appendix.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_dense": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_hybrid": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_correction": [
+        "ledger.pdf#page=1"
+      ],
+      "b_old_term": [],
+      "b_multipage": [
+        "two.pdf#page=2",
+        "long.pdf#page=1",
+        "two.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "live_a": {
+        "served": 55
+      },
+      "checks": {
+        "visual_top": true,
+        "passage_top": true,
+        "hybrid_top": true,
+        "corrected_scan": true,
+        "cutover_scope": true,
+        "live_a": true,
+        "physical_page_two": true
+      }
+    },
+    {
+      "engine": "lance",
+      "inputs_sha256": "b8a084e638ad33bff0bec7a51564e99aa5ab938bff0ae6b2db75d2f79ed4ae65",
+      "model_identity": "7c034a322f810a719cc3183d82c71e902f9a5588722cdf585dc6065849d43b78",
+      "policy": "application predicate",
+      "cutover": "application route",
+      "indexed_before_extra_source": {
+        "a": {
+          "rows": 3
+        },
+        "b": {
+          "rows": 4
+        }
+      },
+      "a_dense": [
+        "long.pdf#page=1",
+        "appendix.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_dense": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_hybrid": [
+        "long.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "b_correction": [
+        "ledger.pdf#page=1"
+      ],
+      "b_old_term": [],
+      "b_multipage": [
+        "two.pdf#page=2",
+        "long.pdf#page=1",
+        "two.pdf#page=1",
+        "ledger.pdf#page=1"
+      ],
+      "live_a": {
+        "served": 1
+      },
+      "checks": {
+        "visual_top": true,
+        "passage_top": true,
+        "hybrid_top": true,
+        "corrected_scan": true,
+        "cutover_scope": true,
+        "live_a": true,
+        "physical_page_two": true
+      }
+    }
+  ]
+}

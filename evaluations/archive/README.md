@@ -188,3 +188,14 @@ uv run --with pypdfium2==4.30.0 --with pillow==13.0.0 python pdf_vector_migratio
 The client writes per-leg JSON receipts. A failed behavioral check gives a nonzero exit even if the database reports complete vector coverage. Fixture timings include model warm-up effects and use a single closed-loop reader. Use the archive campaign for matched latency comparisons.
 
 For the full representation comparison, the admission condition is that a tenant-scoped query on each serving generation returns the expected physical page. Score dense retrieval first on the same 90 questions, filters, and 20-distinct-page budget, then score hybrid retrieval on B. Record rendered pages, OCR calls and reported tokens, chunks, vectors, storage, backfill time, query latency and cutover separately. Include application rendering, OCR and indexing costs for each engine. Keep the publisher-text encoder replacement as a separate experiment.
+
+#### Matched representation fixture for all five engines
+
+Run the shared-input arm to compare Antfly, PostgreSQL/pgvector, OpenSearch, Vespa and LanceDB. A common worker renders the initial pages at 144 DPI, reads embedded text with PDFium, sends pages with less than 50 non-whitespace characters to LightOnOCR, and forms page-local chunks of up to 160 words. It embeds the images, chunks and questions with the same Gemma model identity and writes one input file for all adapters. Use a loopback inference endpoint serving both models, then run from the repository root:
+
+```sh
+python evaluations/archive/pdf_vector_compare.py prepare --models "$MODEL_URL" --out "$INPUTS"
+python evaluations/archive/qualify.py --pdf-inputs "$INPUTS/inputs.json" --out "$RESULTS"
+```
+
+Every adapter serves A while B is partially populated. The client applies the same ledger correction and tenant change to both generations, waits for both public and audit readers to reflect the change, then routes new reads to B. The gates check dense page retrieval on A and B, hybrid retrieval on B, replacement of the old lexical evidence and the physical page of the additional two-page PDF. Each receipt includes the shared-input SHA-256, access mechanism, individual checks, and actual probe count. The fixture measures retrieval and application-orchestrated migration over matched representations. The separate Antfly-native run measures sourcing those representations directly from PDF URLs.
