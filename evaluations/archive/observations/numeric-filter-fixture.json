@@ -1,0 +1,42 @@
+{
+  "evolved": {
+    "index": "full_text_index_v1",
+    "rows": 640,
+    "eligible_rows": 16,
+    "channels": {
+      "lexical": {
+        "candidates": 16,
+        "median_seconds": 0.048906791998888366,
+        "ranking_passes": [
+          1,
+          1,
+          1
+        ]
+      },
+      "dense": {
+        "candidates": 16,
+        "median_seconds": 0.04907645799903548
+      }
+    }
+  },
+  "fresh": {
+    "index": "full_text_index_v0",
+    "rows": 640,
+    "eligible_rows": 16,
+    "channels": {
+      "lexical": {
+        "candidates": 16,
+        "median_seconds": 0.04914733300029184,
+        "ranking_passes": [
+          1,
+          1,
+          1
+        ]
+      },
+      "dense": {
+        "candidates": 16,
+        "median_seconds": 0.04930583299938007
+      }
+    }
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "engine": "antfly",
+  "source": {
+    "source": "authored matched vectors",
+    "chunks": 3
+  },
+  "corpus_chunks": 3,
+  "sentinels": 2,
+  "completion_seconds": 5.673908377999851,
+  "vector_oracle": {
+    "probe-alpha": {
+      "same_direction_distance": 0,
+      "antipode_distance": 2
+    },
+    "probe-beta": {
+      "same_direction_distance": 0,
+      "antipode_distance": 2
+    }
+  },
+  "events": {
+    "b_request_held": 0.5592416669996965,
+    "correction_ack": 0.7283560010000656,
+    "restricted_reader_available": true,
+    "release": 0.7791716259998793
+  },
+  "coverage": {
+    "policy": "strict",
+    "observation_complete": true,
+    "observation_incomplete_reasons": [],
+    "config_fingerprint": "041125471fe2278d",
+    "summary_ready": true,
+    "config_mismatch_group_count": 0,
+    "source_total": 5,
+    "produced": 5,
+    "skipped": 0,
+    "terminal_failed": 0,
+    "covered": 5,
+    "settled": 5,
+    "uncovered": 0,
+    "pending": 0,
+    "complete": true,
+    "healthy": true,
+    "degraded": false
+  },
+  "coverage_over_time": [
+    [
+      0.7800220839999383,
+      0
+    ],
+    [
+      1.0081629179999254,
+      4
+    ],
+    [
+      1.3702289590000873,
+      5
+    ],
+    [
+      1.5241168349998588,
+      5
+    ],
+    [
+      1.6752857100000256,
+      5
+    ],
+    [
+      2.118421625999872,
+      5
+    ],
+    [
+      2.613005501999851,
+      5
+    ],
+    [
+      3.1167622939997273,
+      5
+    ],
+    [
+      3.633187001999886,
+      5
+    ],
+    [
+      4.132258169000124,
+      5
+    ],
+    [
+      4.630861169000127,
+      5
+    ],
+    [
+      5.124958795000111,
+      5
+    ],
+    [
+      5.6246830860000046,
+      5
+    ]
+  ],
+  "scheduled_arrivals": 12,
+  "recorded_arrivals": 12,
+  "model_a": "BAAI/bge-small-en-v1.5",
+  "model_b": "BAAI/bge-small-en",
+  "cutover": "native alias",
+  "traffic": [
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 0.0,
+      "latency": 1.008048750999933
+    },
+    {
+      "available": true,
+      "hits": 3,
+      "ineligible": 0,
+      "scheduled": 0.5,
+      "latency": 0.8701426679999713
+    },
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 1.0,
+      "latency": 0.5240140850000898
+    },
+    {
+      "available": true,
+      "hits": 3,
+      "ineligible": 0,
+      "scheduled": 1.5,
+      "latency": 0.1751874179999504
+    },
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 2.0,
+      "latency": 0.11829604300010033
+    },
+    {
+      "available": true,
+      "hits": 3,
+      "ineligible": 0,
+      "scheduled": 2.5,
+      "latency": 0.11289145999990069
+    },
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 3.0,
+      "latency": 0.11664512700008345
+    },
+    {
+      "available": true,
+      "hits": 3,
+      "ineligible": 0,
+      "scheduled": 3.5,
+      "latency": 0.13306287699970198
+    },
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 4.0,
+      "latency": 0.13212871099995027
+    },
+    {
+      "available": true,
+      "hits": 3,
+      "ineligible": 0,
+      "scheduled": 4.5,
+      "latency": 0.13072550300012153
+    },
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 5.0,
+      "latency": 0.12484146099995996
+    },
+    {
+      "available": true,
+      "hits": 3,
+      "ineligible": 0,
+      "scheduled": 5.5,
+      "latency": 0.1246108360001017
+    }
+  ]
+}

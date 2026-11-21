@@ -1,0 +1,73 @@
+{
+  "engine": "postgres",
+  "source": {
+    "source": "authored matched vectors",
+    "chunks": 3
+  },
+  "corpus_chunks": 3,
+  "sentinels": 2,
+  "completion_seconds": 1.071235083999909,
+  "vector_oracle": {
+    "probe-alpha": 3.76695055301145e-16,
+    "probe-beta": 8.000058660104521e-16
+  },
+  "events": {
+    "b_request_held": 0.13748149999992165,
+    "correction_ack": 0.21253375000014785,
+    "restricted_reader_available": true,
+    "release": 0.22069520900004136
+  },
+  "coverage": {
+    "observation_complete": true,
+    "source_total": 5,
+    "produced": 5,
+    "complete": true,
+    "pending": 0
+  },
+  "coverage_over_time": [
+    [
+      0.2215152499998112,
+      0
+    ],
+    [
+      0.4025803750000705,
+      0
+    ],
+    [
+      0.7721082090001801,
+      4
+    ],
+    [
+      1.0685164169999553,
+      5
+    ]
+  ],
+  "scheduled_arrivals": 3,
+  "recorded_arrivals": 3,
+  "model_a": "BAAI/bge-small-en-v1.5",
+  "model_b": "BAAI/bge-small-en",
+  "cutover": "client selects B index and query encoder",
+  "traffic": [
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 0.0,
+      "latency": 0.40248816699977397
+    },
+    {
+      "available": true,
+      "hits": 3,
+      "ineligible": 0,
+      "scheduled": 0.5,
+      "latency": 0.2719189589997768
+    },
+    {
+      "available": true,
+      "hits": 2,
+      "ineligible": 0,
+      "scheduled": 1.0,
+      "latency": 0.06841833399994357
+    }
+  ]
+}

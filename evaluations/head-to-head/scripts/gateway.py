@@ -66,6 +66,11 @@ class Handler(BaseHTTPRequestHandler):
         ):
             return self.reply(403, {})
         with lock:
+            if self.path == "/held-requests":
+                return self.reply(
+                    200,
+                    {"pending": sum(r["pending"] and r["hold_applied"] for r in calls)},
+                )
             self.reply(200, {"calls": list(calls), "held": held})
 
     def do_POST(self):
@@ -154,4 +159,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", 8090), Handler).serve_forever()
+    ThreadingHTTPServer(
+        ("0.0.0.0", int(os.getenv("PAPER_GATEWAY_PORT", "8090"))), Handler
+    ).serve_forever()
