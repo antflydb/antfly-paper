@@ -1,6 +1,8 @@
 """Run corpus retrieval on a disposable loopback Antfly release without Docker."""
 
 import argparse
+import hashlib
+import json
 import os
 import secrets
 import subprocess
@@ -14,6 +16,11 @@ from engines import call
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--binary", type=Path, required=True)
+    p.add_argument(
+        "--expected-version",
+        choices=("0.3.1", "0.3.2"),
+        help="require this Antfly release for a particular cohort",
+    )
     p.add_argument("--state", type=Path, required=True)
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--out", type=Path, required=True)
@@ -25,11 +32,29 @@ def main():
     version = subprocess.check_output(
         [str(args.binary.resolve()), "--version"], text=True, stderr=subprocess.STDOUT
     )
-    if not version.startswith("antfly 0.3.1 "):
-        raise ValueError("this campaign uses the official v0.3.1 subject")
+    fields = version.strip().split()
+    if len(fields) < 2 or fields[0] != "antfly" or fields[1] not in {"0.3.1", "0.3.2"}:
+        raise ValueError(f"unexpected archive subject: {version.strip()}")
+    if args.expected_version and fields[1] != args.expected_version:
+        raise ValueError(f"expected Antfly {args.expected_version}, got {fields[1]}")
+    digest = hashlib.sha256()
+    with args.binary.open("rb") as binary:
+        for block in iter(lambda: binary.read(1024 * 1024), b""):
+            digest.update(block)
     if not (args.corpus / "manifest.json").is_file():
         raise ValueError("corpus preparation has not completed")
     args.state.mkdir(parents=True, exist_ok=False)
+    (args.state / "subject.json").write_text(
+        json.dumps(
+            {
+                "version": fields[1],
+                "version_output": version.strip(),
+                "binary_sha256": digest.hexdigest(),
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     password = secrets.token_hex(24)
     url = f"http://127.0.0.1:{args.port}"
     auth = "admin:" + password

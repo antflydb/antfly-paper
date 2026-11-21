@@ -162,7 +162,7 @@ For implementation effort, compare the application-owned steps, the running proc
 
 The public fixture uses the same EmbeddingGemma 2 model identity and 768-dimensional query vector for both generations. Three single-page PDFs include a scan and a page long enough for two chunks. During B backfill the client corrects the scan and moves a second source outside a reader's tenant. An API-key reader searches the live alias until the compare-and-swap completes. A fourth, two-page PDF checks page attribution after cutover. A separate control renders PNGs in the application and lets Antfly embed the images. This control uses one physical page per source row.
 
-Use a fresh local v0.3.1 standalone on the same machine as the fixture, with both model bundles installed in its models directory. The run creates two disposable tables and two readers. The native leg fetches PDF URLs directly. The control uses PDFium at 144 DPI. The fixture dependencies are `pypdfium2==4.30.0` and `pillow==13.0.0`.
+Use a fresh local v0.3.2 standalone on the same machine as the fixture, with both model bundles installed in its models directory. The run creates two disposable tables and two readers. The native leg fetches PDF URLs directly. The control uses PDFium at 144 DPI. The fixture dependencies are `pypdfium2==4.30.0` and `pillow==13.0.0`.
 
 ```sh
 export ANTFLY_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 24)"
@@ -184,6 +184,8 @@ curl --retry 30 --retry-connrefused --retry-delay 1 -fsS -u "$ARCHIVE_ANTFLY_AUT
 uv run --with pypdfium2==4.30.0 --with pillow==13.0.0 python pdf_vector_migration.py \
   --endpoint http://127.0.0.1:38725 --out "$state/qualification"
 ```
+
+For corpus runs through `native_release.py`, use `--expected-version 0.3.2` to pin the subject. The runner writes the observed version and binary SHA-256 to `subject.json` in its state directory. The historical v0.3.1 cohorts can be replayed with `--expected-version 0.3.1`.
 
 The client writes per-leg JSON receipts. A failed behavioral check gives a nonzero exit even if the database reports complete vector coverage. Fixture timings include model warm-up effects and use a single closed-loop reader. Use the archive campaign for matched latency comparisons.
 
