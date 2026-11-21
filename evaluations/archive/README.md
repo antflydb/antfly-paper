@@ -204,7 +204,7 @@ Every adapter serves A while B is partially populated. The client applies the sa
 
 #### Full OfficeQA representation campaign
 
-Use the v0.3.2 binary that passed the PDF fixture. Start its loopback inference server with the qualified Gemma and LightOnOCR bundles. The preparation and database stages run serially on the benchmark host. Paths for the prepared inputs, raw rankings and database state must point to private storage.
+Use the v0.3.2 binary that passed the PDF fixture. Start its loopback inference server with the qualified Gemma and LightOnOCR bundles and `--scratch-budget-mb 16384`. On Wolfspider the first 233 PDFs ran with a 6 GiB scratch budget. A later OCR request required 12.63 GiB. Preparation resumed with a 16 GiB budget, which the full native PDF trial also uses. The preparation and database stages run serially on the benchmark host. Paths for the prepared inputs, raw rankings and database state must point to private storage.
 
 ```sh
 python evaluations/archive/pdf_archive_inputs.py --models "$MODEL_URL" --data "$OFFICEQA" \

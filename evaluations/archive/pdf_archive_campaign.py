@@ -75,6 +75,8 @@ def run_subject(args, engine, out, state):
                 "public_inference": {"enabled": native},
             }
             publish(state / "config.json", config)
+            scratch_mib = 16384 if native else 6144
+            publish(out / "inference-budget.json", {"scratch_mib": scratch_mib})
             server = start(
                 args.binary,
                 "standalone",
@@ -93,7 +95,7 @@ def run_subject(args, engine, out, state):
                 "--data-dir",
                 state / "db",
                 "--inference-scratch-budget-mb",
-                "6144",
+                scratch_mib,
             )
 
             def ready():
