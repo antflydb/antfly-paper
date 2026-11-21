@@ -1,16 +1,66 @@
+import hashlib
+import json
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+from urllib.error import HTTPError
 
 from annotate import assertions, sample
 from compare import observations
 from corpus import chunk_rows, publisher_pages
 from evidence import citations, fuse, score_assertions, score_pages
 from miniature import build
+from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_ocr_schedule_resume(self):
+        inventory = [{"path": name} for name in ("a.pdf", "b.pdf")]
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            spec = {"subject": "release"}
+            marker = root / "identity.json"
+            marker.write_text(json.dumps(spec | {"ocr_retry_truncated_tokens": 8192}))
+            receipts = root / "receipts"
+            receipts.mkdir()
+
+            def receipt(name):
+                return receipts / (hashlib.sha256(name.encode()).hexdigest() + ".json")
+
+            receipt("b.pdf").touch()
+            with self.assertRaisesRegex(ValueError, "prefix"):
+                bind_ocr_schedule(root, spec, inventory, None)
+            receipt("b.pdf").rename(receipt("a.pdf"))
+            frozen = bind_ocr_schedule(root, spec, inventory, None)
+            self.assertEqual(frozen["legacy_ocr_pdfs"], 1)
+            receipt("b.pdf").touch()
+            self.assertEqual(bind_ocr_schedule(root, spec, inventory, None), frozen)
+            with self.assertRaisesRegex(ValueError, "identity"):
+                bind_ocr_schedule(root, spec, inventory, 2)
+            with self.assertRaisesRegex(ValueError, "identity"):
+                bind_ocr_schedule(root, {"subject": "other-release"}, inventory, None)
+
+    def test_direct_ocr_ceiling(self):
+        from common import extract_page
+
+        page = Mock()
+        page.get_textpage.return_value.get_text_range.return_value = ""
+        image = page.render.return_value.to_pil.return_value
+        image.width = image.height = 1
+        truncated = OSError('"OUTPUT_TRUNCATED"')
+        truncated.__cause__ = HTTPError("url", 400, "Bad Request", {}, None)
+        costs = Counter()
+        with patch("common.request", side_effect=truncated) as request:
+            result = extract_page(
+                page, 1, "url", reader="reader", costs=costs, ocr_token_limits=(8192,)
+            )
+            self.assertEqual(result["extraction"], "ocr_truncated")
+            self.assertEqual(request.call_count, 1)
+            self.assertEqual(request.call_args.args[1]["max_tokens"], 8192)
+            self.assertEqual((costs["ocr_calls"], costs["ocr_truncated_calls"]), (1, 1))
+
     def test_citations(self):
         for source in (
             "corpus_file=a.txt | pdf_page_number=2 | description=see lamps; or rope",

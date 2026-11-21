@@ -33,9 +33,7 @@ def request(url, body=None, *, method=None, headers=None, timeout=180):
         ) from exc
 
 
-def extract_page(
-    page, number, models, *, reader, costs=None, retry_truncated_tokens=None
-):
+def extract_page(page, number, models, *, reader, costs=None, ocr_token_limits=None):
     textpage = page.get_textpage()
     text = textpage.get_text_range()
     textpage.close()
@@ -46,12 +44,7 @@ def extract_page(
         image.save(stream, "PNG")
         uri = "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
         body = {"model": reader, "images": [{"url": uri}]}
-        budgets = (
-            (None,)
-            if retry_truncated_tokens is None
-            else (None, retry_truncated_tokens)
-        )
-        for budget in budgets:
+        for budget in ocr_token_limits or (None,):
             if budget is not None:
                 body["max_tokens"] = budget
             start = time.monotonic()
@@ -59,13 +52,13 @@ def extract_page(
                 output = request(
                     models + "/ai/v1/read",
                     body,
-                    timeout=900 if retry_truncated_tokens else 180,
+                    timeout=900 if ocr_token_limits else 180,
                 )
                 break
             except OSError as exc:
                 cause = exc.__cause__
                 if (
-                    retry_truncated_tokens is None
+                    ocr_token_limits is None
                     or getattr(cause, "code", None) != 400
                     or '"OUTPUT_TRUNCATED"' not in str(exc)
                 ):

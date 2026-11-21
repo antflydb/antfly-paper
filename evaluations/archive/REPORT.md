@@ -71,6 +71,8 @@ Antfly v0.3.2 passes the native PDF migration fixture. The single-PDF reproducer
 
 On November 21, a text-layer census read every physical page with the same PDFium extraction call as the shared-input worker. All 118,524 pages yielded zero non-whitespace characters, so every page qualifies for LightOnOCR under the worker’s 50-character threshold. The native Antfly trial records its own OCR decisions.
 
+On November 21 the shared worker switched to an 8,192-token first call after 361 completed PDFs (898 pages). The earlier policy issued 1,219 OCR calls, including 321 truncated attempts that triggered retries. Those documents took 29,914 seconds of active preparation time (108.1 pages/hour). Use `--legacy-ocr-pdfs 361` to replay the same boundary. Report throughput for subsequent PDFs separately. The input order favors short documents, so a before-and-after rate alone cannot establish a speedup.
+
 
 On the public fixture, v0.3.1's native PDF page-image index reported complete coverage of three sources and three searchable vectors. Its dense profile recorded three raw matches, but the query returned zero hits to the administrator and the tenant reader. The same three pages rendered to PNG in the application and embedded by Antfly returned three hits with the same EmbeddingGemma 2 query vector. Release v0.3.1 therefore fails the entry condition for the full native OfficeQA representation comparison. [Fixture receipt](observations/pdf-vector-migration-v031.json)
 

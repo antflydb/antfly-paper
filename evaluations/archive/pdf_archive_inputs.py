@@ -35,6 +35,36 @@ def flush(pending, stream, models, identity):
     pending.clear()
 
 
+def bind_ocr_schedule(out, spec, pdfs, legacy_pdfs):
+    marker = out / "identity.json"
+    receipts = out / "receipts"
+    saved = json.loads(marker.read_text()) if marker.exists() else None
+    legacy_spec = spec | {"ocr_retry_truncated_tokens": 8192}
+    if saved == legacy_spec:
+        # Old workers committed one receipt at a time in this inventory order.
+        existing = {p.stem for p in receipts.glob("*.json")}
+        prefix = {
+            hashlib.sha256(Path(r["path"]).name.encode()).hexdigest()
+            for r in pdfs[: len(existing)]
+        }
+        if prefix != existing or legacy_pdfs not in (None, len(existing)):
+            raise ValueError("legacy OCR checkpoints differ from the frozen prefix")
+        legacy_pdfs = len(existing)
+    elif saved is not None and legacy_pdfs is None:
+        legacy_pdfs = saved.get("legacy_ocr_pdfs")
+    elif saved is None and any(receipts.glob("*.json")):
+        raise ValueError("checkpoint identity missing")
+    if legacy_pdfs is None:
+        legacy_pdfs = 0
+    if not 0 <= legacy_pdfs <= len(pdfs):
+        raise ValueError("legacy OCR prefix outside inventory")
+    scheduled = spec | {"legacy_ocr_pdfs": legacy_pdfs, "ocr_max_tokens": 8192}
+    if saved not in (None, scheduled, legacy_spec):
+        raise ValueError("checkpoint identity changed")
+    publish(marker, scheduled)
+    return scheduled
+
+
 def prepare(args):
     import pypdfium2 as pdfium
     from common import extract_page
@@ -81,7 +111,6 @@ def prepare(args):
         "model": MODEL,
         "model_identity": identity,
         "reader": READER,
-        "ocr_retry_truncated_tokens": 8192,
         "render_dpi": 144,
         "chunk_words": 160,
         "dimensions": 768,
@@ -91,10 +120,8 @@ def prepare(args):
             for n in ("documents.json", "queries.json", "judgments.json")
         },
     }
-    marker = args.out / "identity.json"
-    if marker.exists() and json.loads(marker.read_text()) != spec:
-        raise ValueError("checkpoint identity changed")
-    publish(marker, spec)
+    pdfs.sort(key=lambda r: (r["physical_pages"], r["path"]))
+    spec = bind_ocr_schedule(args.out, spec, pdfs, args.legacy_ocr_pdfs)
     for q in prompts:
         q.update(a=encoded[q["question"]], b=encoded[q["question"]])
     publish(args.out / "queries.json", prompts)
@@ -103,15 +130,16 @@ def prepare(args):
     receipts = args.out / "receipts"
     receipts.mkdir(exist_ok=True)
     totals = Counter()
-    for i, r in enumerate(
-        sorted(pdfs, key=lambda v: (v["physical_pages"], v["path"])), 1
-    ):
+    for i, r in enumerate(pdfs, 1):
+        limits = (4096, 8192) if i <= spec["legacy_ocr_pdfs"] else (8192,)
         name = Path(r["path"]).name
         key = hashlib.sha256(name.encode()).hexdigest()
         files = {g: args.out / g / "documents" / (key + ".jsonl") for g in ("a", "b")}
         rec = receipts / (key + ".json")
         if rec.exists():
             saved = json.loads(rec.read_text())
+            if tuple(saved.get("ocr_token_limits", (4096, 8192))) != limits:
+                raise ValueError("receipt OCR policy differs from the frozen schedule")
             if all(
                 file.exists() and sha(file) == saved["sha256"][g]
                 for g, file in files.items()
@@ -169,7 +197,7 @@ def prepare(args):
                         args.models,
                         reader=READER,
                         costs=counts,
-                        retry_truncated_tokens=8192,
+                        ocr_token_limits=limits,
                     )
                     counts[output["extraction"] + "_pages"] += 1
                     if output["extraction"] == "ocr_truncated":
@@ -195,6 +223,7 @@ def prepare(args):
         counts["b_rows"] = counts["chunks"] * (1 + len(metadata[name]))
         counts["documents"] = 1
         record = {
+            "ocr_token_limits": limits,
             "counts": dict(counts),
             "truncated_pages": truncated,
             "seconds": time.monotonic() - started,
@@ -208,13 +237,36 @@ def prepare(args):
         )
     if totals["pages"] != 118524 or totals["documents"] != 1435 or not totals["chunks"]:
         raise ValueError("incomplete representation corpus")
-    publish(args.out / "manifest.json", spec | {"counts": dict(totals)})
+    timing = {}
+    for path in receipts.glob("*.json"):
+        doc = json.loads(path.read_text())
+        limits = doc.get("ocr_token_limits", [4096, 8192])
+        key = ",".join(map(str, limits))
+        group = timing.setdefault(key, Counter())
+        for field in (
+            "documents",
+            "pages",
+            "ocr_calls",
+            "ocr_wall_ms",
+            "ocr_truncated_calls",
+        ):
+            group[field] += doc["counts"].get(field, 0)
+        group["processing_seconds"] += doc["seconds"]
+    publish(
+        args.out / "manifest.json",
+        spec | {"counts": dict(totals), "timing_by_ocr_limits": timing},
+    )
 
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     for n in ("data", "workload", "out"):
         p.add_argument("--" + n, type=Path, required=True)
+    p.add_argument(
+        "--legacy-ocr-pdfs",
+        type=int,
+        help="replay the old 4096 then 8192 policy for this many initial PDFs in frozen order",
+    )
     p.add_argument("--models", required=True)
     p.add_argument("--subject", required=True, help="runtime binary SHA-256")
     args = p.parse_args()
