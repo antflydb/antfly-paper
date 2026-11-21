@@ -20,6 +20,24 @@ READER = (
 PAGE_TWO = "Where is the xenolith spectrometer calibration recorded?"
 
 
+def embed_batch(endpoint, inputs, task, identity=None):
+    response = call(
+        endpoint.rstrip("/") + "/ai/v1/embed",
+        "POST",
+        {"model": MODEL, "task_type": task, "dimensions": 768, "input": inputs},
+    )
+    observed = response["model_identity"]
+    if identity is not None and identity != observed:
+        raise ValueError("model identity changed during preparation")
+    rows = sorted(response["data"], key=lambda row: row["index"])
+    if [r["index"] for r in rows] != list(range(len(inputs))):
+        raise ValueError("embedding cardinality or indexes differ")
+    vectors = [r["embedding"] for r in rows]
+    if any(len(v) != 768 or not all(math.isfinite(x) for x in v) for v in vectors):
+        raise ValueError("invalid embedding")
+    return vectors, observed
+
+
 def build_inputs(endpoint, out):
     from common import extract_pdf
 
@@ -31,21 +49,7 @@ def build_inputs(endpoint, out):
 
     def embed(inputs, task):
         nonlocal identity
-        response = call(
-            endpoint.rstrip("/") + "/ai/v1/embed",
-            "POST",
-            {"model": MODEL, "task_type": task, "dimensions": 768, "input": inputs},
-        )
-        observed = response["model_identity"]
-        if identity is not None and identity != observed:
-            raise ValueError("model identity changed during preparation")
-        identity = observed
-        rows = sorted(response["data"], key=lambda row: row["index"])
-        if [r["index"] for r in rows] != list(range(len(inputs))):
-            raise ValueError("embedding cardinality or indexes differ")
-        vectors = [r["embedding"] for r in rows]
-        if any(len(v) != 768 or not all(math.isfinite(x) for x in v) for v in vectors):
-            raise ValueError("invalid embedding")
+        vectors, identity = embed_batch(endpoint, inputs, task, identity)
         return vectors
 
     def rows(name, version, source, image):

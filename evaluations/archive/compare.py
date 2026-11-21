@@ -248,8 +248,19 @@ def main():
     }:
         raise ValueError("corpus queries and workload judgments disagree")
     args.out.mkdir(parents=True, exist_ok=False)
-    chunks = args.corpus
-    first = next(chunk_rows(chunks))
+    pdf_migration = manifest.get("representations") == "pdf-images-to-passages-v1"
+    if pdf_migration and (
+        args.migration_models or args.original_only or args.postgres_lexical_control
+    ):
+        p.error(
+            "the representation comparison uses two frozen inputs and a dense-only A"
+        )
+    a_inputs = args.corpus / "a" if pdf_migration else args.corpus
+    b_inputs = args.corpus / "b" if pdf_migration else args.corpus
+    a_dim = len(next(chunk_rows(a_inputs))["a"])
+    b_dim = len(next(chunk_rows(b_inputs))["b"]) if not args.original_only else None
+    a_modes = ("dense",) if pdf_migration else ("lexical", "dense", "hybrid")
+    traffic_mode = "dense" if pdf_migration else "hybrid"
     prefix = "archive" + uuid.uuid4().hex[:10]
     schemas = {}
 
@@ -258,7 +269,7 @@ def main():
             return Antfly(
                 args.endpoint,
                 prefix + g,
-                "write" if g == "b" else "full_index",
+                "write" if pdf_migration or g == "b" else "full_index",
                 access="basic" if args.access == "default" else args.access,
             )
         if args.engine == "opensearch":
@@ -271,9 +282,20 @@ def main():
         }[args.engine](args.endpoint, prefix + g)
 
     a, b = build("a"), build("b")
-    a.create(len(first["a"]))
-    count = load(a, chunks, "a", False)
+    a_started = time.monotonic()
+    if pdf_migration and isinstance(a, Antfly):
+        a.create(a_dim, evolved=True)
+    else:
+        a.create(a_dim)
+        if pdf_migration:
+            a.evolve()
+    count = load(a, a_inputs, "a", pdf_migration)
     a.finish()
+    if pdf_migration:
+        if count != manifest["counts"]["a_rows"]:
+            raise ValueError("page-image row count disagrees with the frozen inventory")
+        wait_for_indexed_rows(a, count, "A")
+    a_build_seconds = time.monotonic() - a_started
     if args.original_only:
         wait_for_indexed_rows(a, count, "A")
         results = replay(a, "a", queries, args, "original", gold)
@@ -291,21 +313,26 @@ def main():
             )
         )
         return
-    results = replay(a, "a", queries, args, "initial", gold)
-    a.evolve()
-    if (
-        a.populate_retention() if isinstance(a, Lance) else load(a, chunks, "a", True)
-    ) != count:
-        raise ValueError("schema evolution row count changed")
-    if not isinstance(a, Lance):
-        a.finish()
-    results.update(replay(a, "a", queries, args, "after-schema-change", gold))
-    results.update(replay(a, "a", queries, args, "original", gold))
+    results = replay(a, "a", queries, args, "initial", gold, modes=a_modes)
+    if not pdf_migration:
+        a.evolve()
+        if (
+            a.populate_retention()
+            if isinstance(a, Lance)
+            else load(a, a_inputs, "a", True)
+        ) != count:
+            raise ValueError("schema evolution row count changed")
+        if not isinstance(a, Lance):
+            a.finish()
+    results.update(
+        replay(a, "a", queries, args, "after-schema-change", gold, modes=a_modes)
+    )
+    results.update(replay(a, "a", queries, args, "original", gold, modes=a_modes))
     probes = [q for q in queries if q["phase"] == "after-schema-change"]
     if not 1 <= args.readiness_probe_ordinal <= len(probes):
         raise ValueError("readiness probe outside evolved workload")
     probe = probes[args.readiness_probe_ordinal - 1]
-    for channel in ("lexical", "dense"):
+    for channel in ("dense",) if pdf_migration else ("lexical", "dense"):
         a_ranks = json.loads(
             (args.out / f"a-after-schema-change-{channel}.json").read_text()
         )
@@ -327,7 +354,7 @@ def main():
         )
         try:
             row["hits"] = observations(
-                a, q, "a", "hybrid", args.depth, args.k, eligible[q["id"]], stages
+                a, q, "a", traffic_mode, args.depth, args.k, eligible[q["id"]], stages
             )
             row["ineligible"] = score_pages(
                 {q["id"]: gold[q["id"]]}, {q["id"]: row["hits"]}, args.k
@@ -376,13 +403,13 @@ def main():
         future = pool.submit(traffic)
         try:
             if isinstance(b, Antfly):
-                b.create(len(first["b"]), evolved=True)
+                b.create(b_dim, evolved=True)
             else:
-                b.create(len(first["b"]))
+                b.create(b_dim)
                 b.evolve()
             completed = load(
                 b,
-                chunks,
+                b_inputs,
                 "b",
                 True,
                 models=args.migration_models,
@@ -392,16 +419,17 @@ def main():
                     [time.monotonic() - start, count]
                 ),
             )
-            if completed != count:
+            expected_b = manifest["counts"]["b_rows"] if pdf_migration else count
+            if completed != expected_b:
                 raise ValueError("B row acknowledgment count mismatch")
             writes = time.monotonic() - start
             b.finish()
-            counts = wait_for_indexed_rows(b, count, "B")
+            counts = wait_for_indexed_rows(b, expected_b, "B")
             observations(
                 b,
                 probe,
                 "b",
-                "hybrid",
+                traffic_mode,
                 args.depth,
                 args.k,
                 eligible[probe["id"]],
@@ -417,7 +445,7 @@ def main():
         active,
         probe,
         encoder,
-        "hybrid",
+        traffic_mode,
         args.depth,
         args.k,
         eligible[probe["id"]],
@@ -459,6 +487,15 @@ def main():
         )
         + "; controller selects generation",
     }
+    if pdf_migration:
+        receipt.pop("rows_per_generation")
+        receipt.update(
+            a_rows=count,
+            b_rows=completed,
+            a_build_seconds=a_build_seconds,
+            serving_channel=traffic_mode,
+        )
+        results.update(replay(b, "b", queries, args, "original", gold))
     if args.postgres_lexical_control:
         a.match_any_lexeme = True
         receipt["postgres_lexical_sensitivity"] = replay(

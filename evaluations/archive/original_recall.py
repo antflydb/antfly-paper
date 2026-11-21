@@ -43,17 +43,29 @@ def main():
         for row in dataset.load_questions(args.data, spec=dataset.V2)
     }
     scores = {}
-    for channel in ("lexical", "dense", "hybrid"):
-        ranking = json.loads((args.result / f"a-original-{channel}.json").read_text())
+    pdf_migration = (
+        receipt["source"].get("representations") == "pdf-images-to-passages-v1"
+    )
+    cells = (
+        [("a", "dense"), ("b", "dense"), ("b", "lexical"), ("b", "hybrid")]
+        if pdf_migration
+        else [("a", channel) for channel in ("lexical", "dense", "hybrid")]
+    )
+    for gen, channel in cells:
+        ranking = json.loads(
+            (args.result / f"{gen}-original-{channel}.json").read_text()
+        )
         scored = score_pages(gold, ranking, receipt["k"])
-        scores[channel] = {
+        scores[f"{gen}-{channel}" if pdf_migration else channel] = {
             k: scored[k] for k in ("k", "queries", "recall", "complete", "ineligible")
         }
     print(
         json.dumps(
             {
                 "engine": receipt["engine"],
-                "source": receipt["source"]["source"],
+                "source": receipt["source"]["representations"]
+                if pdf_migration
+                else receipt["source"]["source"],
                 "receipt_sha256": dataset.sha256_file(source),
                 "scores": scores,
             },

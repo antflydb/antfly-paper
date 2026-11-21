@@ -201,3 +201,21 @@ python evaluations/archive/qualify.py --pdf-inputs "$INPUTS/inputs.json" --out "
 ```
 
 Every adapter serves A while B is partially populated. The client applies the same ledger correction and tenant change to both generations, waits for both public and audit readers to reflect the change, then routes new reads to B. The gates check dense page retrieval on A and B, hybrid retrieval on B, replacement of the old lexical evidence and the physical page of the additional two-page PDF. Each receipt includes the shared-input SHA-256, access mechanism, individual checks, and actual probe count. The fixture measures retrieval and application-orchestrated migration over matched representations. The separate Antfly-native run measures sourcing those representations directly from PDF URLs.
+
+#### Full OfficeQA representation campaign
+
+Use the v0.3.2 binary that passed the PDF fixture. Start its loopback inference server with the qualified Gemma and LightOnOCR bundles. The preparation and database stages run serially on the benchmark host. Paths for the prepared inputs, raw rankings and database state must point to private storage.
+
+```sh
+python evaluations/archive/pdf_archive_inputs.py --models "$MODEL_URL" --data "$OFFICEQA" \
+  --workload "$WORKLOAD" --out "$INPUTS" --subject "$(shasum -a 256 "$ANTFLY_BIN" | cut -d' ' -f1)"
+python evaluations/archive/pdf_archive_campaign.py --inputs "$INPUTS" --data "$OFFICEQA" \
+  --workload "$WORKLOAD" --binary "$ANTFLY_BIN" --models-dir "$MODELS_DIR" \
+  --out "$RESULTS" --state "$DB_STATE"
+```
+
+Preparation checks the frozen inventory, renders every physical page at 144 DPI, and checkpoints both representations per PDF. Generation A contains one 768-dimensional image vector per page. Generation B contains same-model vectors for 160-word page-local passages. Pages with fewer than 50 non-whitespace characters go to LightOnOCR at 150 DPI. A truncated 4,096-token response gets one retry at 8,192 tokens. A second truncation retains the available text layer and records the physical page and failed attempts. Pages with no usable text remain in the image index and in the original judgment population. OCR token totals count only calls that returned usage. Rerunning the preparation command verifies completed checkpoints and resumes remaining PDFs.
+
+The five shared-input trials measure database build and serving time using identical prepared vectors. Both generations start with the frozen tenant fields, and Antfly uses `sync_level=write` with an explicit searchable-coverage check. Each trial verifies the distinct expected row counts of A and B, serves dense A queries during B construction, and switches the application route after B coverage and a scoped dense probe. The sixth trial supplies content-addressed PDF URLs directly to Antfly, measures managed indexing and switches the native alias. It uses the release's native text extraction, OCR fallback and 160-token chunker. The 8,192-token application retry applies only to shared-input preparation. The native trial reports the engine's own OCR outcomes. Tenant-visible source copies and native extraction counts are reported separately. Correction and revocation are exercised on the authored fixture.
+
+The campaign records original-question citation recall@20, tenant-filtered recall, eligible results, build and cutover time, live traffic, and final database directory size. A is scored on dense retrieval. B is scored on dense, lexical and hybrid retrieval. Each channel gets 100 candidates. A failed subject writes an attempt receipt and independent subjects continue. Keep the host-native and VM deployment boundaries with any reported latency. The live query schedules differ between the matched open-loop runs and the native closed-loop alias diagnostic.
