@@ -138,6 +138,10 @@ def prepare(args):
         ):
             raise ValueError("publisher catalog is incomplete or mismatched")
         spec["reader"] = publisher_replay.MODEL
+        if not args.native_plan:
+            if not args.application_reader:
+                raise ValueError("publisher replay requires the application reader URL")
+            spec["replay_transport"] = "source-page-png-v1"
     if args.refs:
         refs = json.loads(args.refs.read_text())
         if not set(metadata) <= refs.keys():
@@ -237,6 +241,7 @@ def prepare(args):
                         replay,
                         r["local_sha256"],
                         counts,
+                        args.application_reader,
                     )
                     counts[output["extraction"] + "_pages"] += 1
                     if output["extraction"] == "ocr_truncated":
@@ -285,6 +290,9 @@ def prepare(args):
             "ocr_calls",
             "ocr_wall_ms",
             "ocr_truncated_calls",
+            "replay_calls",
+            "replay_submitted_pixels",
+            "replay_wall_ms",
         ):
             group[field] += doc["counts"].get(field, 0)
         group["processing_seconds"] += doc["seconds"]
@@ -303,6 +311,7 @@ if __name__ == "__main__":
         type=int,
         help="replay the old 4096 then 8192 policy for this many initial PDFs in frozen order",
     )
+    p.add_argument("--application-reader")
     p.add_argument("--refs", type=Path)
     p.add_argument(
         "--native-plan",

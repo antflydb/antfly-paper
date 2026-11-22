@@ -277,7 +277,12 @@ def run_subject(args, engine, out, state):
         if not native and args.pdf_models:
             client += ["--pdf-models", args.pdf_models, "--pdf-refs", args.pdf_refs]
             if args.replay_catalog:
-                client += ["--replay-catalog", args.replay_catalog]
+                client += [
+                    "--replay-catalog",
+                    args.replay_catalog,
+                    "--application-reader",
+                    args.application_reader,
+                ]
         results = out / "rankings"
         cmd = client + [
             "--corpus",
@@ -350,6 +355,7 @@ def main():
         default=284,
         help="one-based frozen evolved readiness probe",
     )
+    parser.add_argument("--application-reader")
     parser.add_argument("--pdf-models")
     parser.add_argument("--pdf-refs", type=Path)
     parser.add_argument("--native-plan", action="store_true")

@@ -40,6 +40,45 @@ class ArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ambiguous"):
             image_text(db, image)
 
+    def test_application_replay_only_uploads_fallback_pages(self):
+        from pdf_pipeline import extract
+        from publisher_replay import MODEL
+
+        page = Mock()
+        text = page.get_textpage.return_value.get_text_range
+        text.return_value = "born digital " * 8
+        costs = Counter()
+        db = sqlite3.connect(":memory:")
+        self.addCleanup(db.close)
+        db.executescript(
+            "CREATE TABLE pages(sha,page,body); INSERT INTO pages VALUES ('version',3,NULL);"
+        )
+        with patch("common.request", return_value={"data": [{"text": ""}]}) as request:
+            result = extract(page, 2, None, (), db, "version", costs, "http://reader")
+            self.assertEqual(result["extraction"], "native")
+            page.render.assert_not_called()
+            request.assert_not_called()
+            text.return_value = ""
+            image = page.render.return_value.to_pil.return_value
+            image.width, image.height = 4, 5
+            image.save.side_effect = lambda stream, fmt: stream.write(b"raster")
+            result = extract(page, 3, None, (), db, "version", costs, "http://reader")
+            self.assertEqual(result["extraction"], "publisher_missing")
+            url, payload = request.call_args.args
+            self.assertEqual(url, "http://reader/pages/version/3/ai/v1/read")
+            self.assertEqual(
+                payload,
+                {"model": MODEL, "images": [{"url": "data:image/png;base64,cmFzdGVy"}]},
+            )
+            self.assertEqual(
+                (
+                    costs["replay_calls"],
+                    costs["replay_submitted_pixels"],
+                    costs["ocr_calls"],
+                ),
+                (1, 20, 0),
+            )
+
     def test_ocr_schedule_resume(self):
         inventory = [{"path": name} for name in ("a.pdf", "b.pdf")]
         with tempfile.TemporaryDirectory() as d:

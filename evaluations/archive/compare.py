@@ -229,6 +229,7 @@ def main():
         action="store_true",
         help="replay A with disjunctive English lexemes after timing",
     )
+    p.add_argument("--application-reader")
     p.add_argument("--pdf-models")
     p.add_argument("--pdf-refs", type=Path)
     p.add_argument("--replay-catalog", type=Path)
@@ -314,6 +315,7 @@ def main():
                 manifest,
                 args.workload,
                 phase_costs[g],
+                args.application_reader,
             )
         return None
 

@@ -1,0 +1,62 @@
+{
+  "scope": "Three synthetic one-page PDFs, two tenant-visible copies per source, versioned HTTP fetch inside each build. A uses page-image vectors and B uses embedded text or a rendered-page replay request. The original lexical probe targets a term supplied by the replay reader.",
+  "engines": {
+    "antfly": {
+      "a_rows": 6,
+      "b_rows": 8,
+      "a_http_pdf_bytes": 41677,
+      "b_http_pdf_bytes": 41677,
+      "b_embedded_text_pages": 2,
+      "b_replay_uploads": 1,
+      "b_replay_submitted_pixels": 2105025,
+      "b_lexical_citation_recall": 1.0,
+      "cutover_completed": true
+    },
+    "postgres": {
+      "a_rows": 6,
+      "b_rows": 8,
+      "a_http_pdf_bytes": 41677,
+      "b_http_pdf_bytes": 41677,
+      "b_embedded_text_pages": 2,
+      "b_replay_uploads": 1,
+      "b_replay_submitted_pixels": 2105025,
+      "b_lexical_citation_recall": 1.0,
+      "cutover_completed": true
+    },
+    "opensearch": {
+      "a_rows": 6,
+      "b_rows": 8,
+      "a_http_pdf_bytes": 41677,
+      "b_http_pdf_bytes": 41677,
+      "b_embedded_text_pages": 2,
+      "b_replay_uploads": 1,
+      "b_replay_submitted_pixels": 2105025,
+      "b_lexical_citation_recall": 1.0,
+      "cutover_completed": true
+    },
+    "vespa": {
+      "a_rows": 6,
+      "b_rows": 8,
+      "a_http_pdf_bytes": 41677,
+      "b_http_pdf_bytes": 41677,
+      "b_embedded_text_pages": 2,
+      "b_replay_uploads": 1,
+      "b_replay_submitted_pixels": 2105025,
+      "b_lexical_citation_recall": 1.0,
+      "cutover_completed": true
+    },
+    "lance": {
+      "a_rows": 6,
+      "b_rows": 8,
+      "a_http_pdf_bytes": 41677,
+      "b_http_pdf_bytes": 41677,
+      "b_embedded_text_pages": 2,
+      "b_replay_uploads": 1,
+      "b_replay_submitted_pixels": 2105025,
+      "b_lexical_citation_recall": 1.0,
+      "cutover_completed": true
+    }
+  },
+  "subject_sha256": "92f425047f9760c1f70b7c85fd2eff2d56cb19ca3ee18a1264dfc5e78547e38d",
+  "model_identity": "7c034a322f810a719cc3183d82c71e902f9a5588722cdf585dc6065849d43b78"
+}

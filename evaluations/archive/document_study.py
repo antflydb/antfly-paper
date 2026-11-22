@@ -74,6 +74,31 @@ def run(a):
 
             ready(model, model_ready)
             options = ["--native-plan"] if native else []
+            if not native and replay:
+                rp = port()
+                remote = stack.enter_context(
+                    service(
+                        a.out / "reader.log",
+                        [
+                            py,
+                            HERE / "publisher_replay.py",
+                            "serve",
+                            "--application",
+                            "--port",
+                            str(rp),
+                            "--catalog",
+                            a.catalog,
+                        ],
+                    )
+                )
+                app_url = f"http://127.0.0.1:{rp}"
+
+                def app_ready():
+                    with urlopen(app_url + "/v1/status", timeout=2) as response:
+                        return response.status == 200
+
+                ready(remote, app_ready)
+                replay += ["--application-reader", app_url]
             if not native:
                 refs = a.out / "source-refs.json"
                 # Publish only after the freshly started server verifies the sources.

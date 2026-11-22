@@ -135,8 +135,11 @@ def image_text(db, raw):
 
 def serve(args):
     with closing(connect(args.catalog)) as db:
-        if not db.execute("SELECT 1 FROM meta WHERE key='render_complete'").fetchone():
-            raise ValueError("native render index incomplete")
+        required = "text_complete" if args.application else "render_complete"
+        if db.execute("SELECT value FROM meta WHERE key=?", (required,)).fetchone() != (
+            "1",
+        ):
+            raise ValueError(f"incomplete replay catalog: {required}")
 
     counts = Counter()
     lock = threading.Lock()
@@ -153,20 +156,33 @@ def serve(args):
             self.wfile.write(data)
 
         def do_POST(self):
-            if self.path != "/v1/chat/completions":
+            page_source = (
+                re.fullmatch(
+                    r"/pages/([0-9a-f]{64})/([1-9][0-9]*)/ai/v1/read", self.path
+                )
+                if args.application
+                else None
+            )
+            if (args.application and not page_source) or (
+                not args.application and self.path != "/v1/chat/completions"
+            ):
                 return self.send_error(404)
             try:
                 length = int(self.headers["Content-Length"])
                 if not 0 < length <= 256 * 1024**2:
                     return self.send_error(413)
                 payload = json.loads(self.rfile.read(length))
-                urls = [
-                    part["image_url"]["url"]
-                    for msg in payload["messages"]
-                    if isinstance(msg["content"], list)
-                    for part in msg["content"]
-                    if part["type"] == "image_url"
-                ]
+                urls = (
+                    [i["url"] for i in payload["images"]]
+                    if page_source
+                    else [
+                        part["image_url"]["url"]
+                        for msg in payload["messages"]
+                        if isinstance(msg["content"], list)
+                        for part in msg["content"]
+                        if part["type"] == "image_url"
+                    ]
+                )
                 if (
                     payload["model"] != MODEL
                     or len(urls) != 1
@@ -174,13 +190,20 @@ def serve(args):
                 ):
                     raise ValueError("expected one rendered PDF page")
                 with closing(connect(args.catalog)) as db:
-                    body = image_text(
-                        db, base64.b64decode(urls[0].split(",", 1)[1], validate=True)
+                    raw = base64.b64decode(urls[0].split(",", 1)[1], validate=True)
+                    if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+                        raise ValueError("invalid rendered PNG")
+                    body = (
+                        page_text(db, page_source[1], int(page_source[2]))
+                        if page_source
+                        else image_text(db, raw)
                     )
                 with lock:
                     counts["missing" if body is None else "mapped"] += 1
                 data = json.dumps(
-                    {
+                    {"data": [{"text": body or ""}]}
+                    if page_source
+                    else {
                         "choices": [
                             {
                                 "index": 0,
@@ -214,6 +237,11 @@ if __name__ == "__main__":
     b.add_argument("--data", type=Path, required=True)
     b.add_argument("--renderer", type=Path)
     s = sub.add_parser("serve")
+    s.add_argument(
+        "--application",
+        action="store_true",
+        help="accept versioned source/page addresses from the application renderer",
+    )
     s.add_argument("--port", type=int, required=True)
     for cmd in [b, s]:
         cmd.add_argument("--catalog", type=Path, required=True)

@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+from collections import Counter
 from contextlib import closing
 
 import publisher_replay
@@ -29,18 +30,33 @@ def visual(page, models, identity, costs):
     return vectors[0]
 
 
-def extract(page, number, models, limits, catalog, sha, costs):
+def extract(page, number, models, limits, catalog, sha, costs, application_reader=None):
     from common import extract_page
 
     if catalog is None:
         return extract_page(
             page, number, models, reader=READER, costs=costs, ocr_token_limits=limits
         )
-    body = publisher_replay.page_text(catalog, sha, number)
-    return {
-        "body": body or "",
-        "extraction": "publisher_missing" if body is None else "publisher",
-    }
+    if not application_reader:
+        raise ValueError("missing application replay endpoint")
+    measured = Counter()
+    result = extract_page(
+        page,
+        number,
+        f"{application_reader}/pages/{sha}/{number}",
+        reader=publisher_replay.MODEL,
+        costs=measured,
+    )
+    if result["extraction"] == "native":
+        return result
+    for k, v in measured.items():
+        costs[k.replace("ocr_", "replay_")] += v
+    # An empty response can be a known missing page or a mapped empty string.
+    missing = (
+        not result["body"] and publisher_replay.page_text(catalog, sha, number) is None
+    )
+    result["extraction"] = "publisher_missing" if missing else "publisher"
+    return result
 
 
 def passages(row, body):
@@ -61,7 +77,16 @@ def embedded(rows, models, identity):
             yield r | {"b": v}
 
 
-def live_rows(gen, models, refs_path, catalog_path, manifest, workload, costs):
+def live_rows(
+    gen,
+    models,
+    refs_path,
+    catalog_path,
+    manifest,
+    workload,
+    costs,
+    application_reader=None,
+):
     import pypdfium2 as pdfium
 
     meta = json.loads((workload / "documents.json").read_text())
@@ -99,7 +124,16 @@ def live_rows(gen, models, refs_path, catalog_path, manifest, workload, costs):
                                 ),
                             }
                             continue
-                        result = extract(page, n, models, (8192,), catalog, sha, costs)
+                        result = extract(
+                            page,
+                            n,
+                            models,
+                            (8192,),
+                            catalog,
+                            sha,
+                            costs,
+                            application_reader,
+                        )
                         costs[result["extraction"] + "_pages"] += 1
                         for r in passages(row, result["body"]):
                             pending.append(r)
