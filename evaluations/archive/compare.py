@@ -7,6 +7,7 @@ import math
 import threading
 import time
 import uuid
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -83,6 +84,7 @@ def load(
     metrics=None,
     progress=None,
     replacement=MIGRATION_EMBEDDER,
+    live_rows=None,
 ):
     batch = []
     count = 0
@@ -95,7 +97,11 @@ def load(
             metrics["write_call_seconds"] += time.monotonic() - start
             metrics["write_batches"] += 1
 
-    for chunk in migration_rows(path, models, metrics, replacement):
+    for chunk in (
+        live_rows
+        if live_rows is not None
+        else migration_rows(path, models, metrics, replacement)
+    ):
         for tenant, meta in {**chunk["views"], "public": {}}.items():
             identity = hashlib.sha256(
                 (tenant + "\0" + chunk["id"]).encode()
@@ -223,6 +229,9 @@ def main():
         action="store_true",
         help="replay A with disjunctive English lexemes after timing",
     )
+    p.add_argument("--pdf-models")
+    p.add_argument("--pdf-refs", type=Path)
+    p.add_argument("--replay-catalog", type=Path)
     args = p.parse_args()
     if args.postgres_lexical_control and (
         args.engine != "postgres" or args.original_only
@@ -289,7 +298,26 @@ def main():
         a.create(a_dim)
         if pdf_migration:
             a.evolve()
-    count = load(a, a_inputs, "a", pdf_migration)
+    from pdf_pipeline import live_rows
+
+    phase_costs = {"a": Counter(), "b": Counter()}
+
+    def source(g):
+        if args.pdf_models:
+            if not pdf_migration or not args.pdf_refs:
+                raise ValueError("live PDF migration requires pinned sources")
+            return live_rows(
+                g,
+                args.pdf_models,
+                args.pdf_refs,
+                args.replay_catalog,
+                manifest,
+                args.workload,
+                phase_costs[g],
+            )
+        return None
+
+    count = load(a, a_inputs, "a", pdf_migration, live_rows=source("a"))
     a.finish()
     if pdf_migration:
         if count != manifest["counts"]["a_rows"]:
@@ -413,6 +441,7 @@ def main():
                 "b",
                 True,
                 models=args.migration_models,
+                live_rows=source("b"),
                 metrics=model_metrics,
                 replacement=manifest.get("embedding_b", MIGRATION_EMBEDDER),
                 progress=lambda count: progress.append(
@@ -487,6 +516,11 @@ def main():
         )
         + "; controller selects generation",
     }
+    if args.pdf_models:
+        receipt["migration"] = (
+            "live remote PDF fetch, extraction, chunking, embedding and indexing; application cutover"
+        )
+        receipt["application_stage_counts"] = phase_costs
     if pdf_migration:
         receipt.pop("rows_per_generation")
         receipt.update(

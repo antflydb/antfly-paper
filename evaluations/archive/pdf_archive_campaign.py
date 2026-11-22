@@ -233,6 +233,39 @@ def run_subject(args, engine, out, state):
                 "--probe",
                 str(args.probe),
             ]
+            if args.native_plan:
+                client.append("--native-plan")
+            if args.replay_catalog:
+                from publisher_replay import connect
+
+                with connect(args.replay_catalog) as catalog:
+                    props = dict(catalog.execute("SELECT key,value FROM meta"))
+                if (
+                    props.get("acquisition") != args.acquisition
+                    or props.get("render_complete") != "1"
+                ):
+                    raise ValueError("native replay catalog mismatch")
+                rp = port()
+                reader = start(
+                    sys.executable,
+                    SCRIPTS / "publisher_replay.py",
+                    "serve",
+                    "--catalog",
+                    args.replay_catalog,
+                    "--port",
+                    rp,
+                )
+                for _ in range(100):
+                    if reader.poll() is not None:
+                        raise RuntimeError("replay reader exited")
+                    try:
+                        with socket.create_connection(("127.0.0.1", rp), timeout=1):
+                            break
+                    except OSError:
+                        time.sleep(0.1)
+                else:
+                    raise TimeoutError("replay reader readiness")
+                client += ["--replay-url", f"http://127.0.0.1:{rp}/v1"]
         else:
             client += [
                 SCRIPTS / "compare.py",
@@ -241,6 +274,10 @@ def run_subject(args, engine, out, state):
                 str(args.probe),
                 *options,
             ]
+        if not native and args.pdf_models:
+            client += ["--pdf-models", args.pdf_models, "--pdf-refs", args.pdf_refs]
+            if args.replay_catalog:
+                client += ["--replay-catalog", args.replay_catalog]
         results = out / "rankings"
         cmd = client + [
             "--corpus",
@@ -285,6 +322,11 @@ def run_subject(args, engine, out, state):
                     args.data,
                     "--result",
                     results,
+                    *(
+                        ["--sample-gold", args.workload / "public-probes.json"]
+                        if (args.workload / "public-probes.json").is_file()
+                        else []
+                    ),
                 ],
                 env=env,
             )
@@ -308,8 +350,22 @@ def main():
         default=284,
         help="one-based frozen evolved readiness probe",
     )
+    parser.add_argument("--pdf-models")
+    parser.add_argument("--pdf-refs", type=Path)
+    parser.add_argument("--native-plan", action="store_true")
+    parser.add_argument("--replay-catalog", type=Path)
     args = parser.parse_args()
-    manifest = json.loads((args.inputs / "manifest.json").read_text())
+    if args.native_plan and list(args.engines) != ["antfly-native"]:
+        parser.error("a native-only plan requires --engines antfly-native")
+    manifest_path = args.inputs / (
+        "native-plan.json" if args.native_plan else "manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text())
+    args.acquisition = manifest["acquisition_sha256"]
+    if "antfly-native" in args.engines and bool(args.replay_catalog) != (
+        manifest.get("reader") == "officeqa-publisher-replay-v1"
+    ):
+        raise ValueError("native reader must match the declared cohort")
     if sha256_file(args.binary) != manifest["subject"]:
         raise ValueError("binary differs from preparation")
     if not subprocess.check_output(
@@ -329,11 +385,11 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # Validate all prepared shards before each group of subjects consumes them.
         shards = sorted((args.inputs / "receipts").glob("*.json"))
-        if len(shards) != manifest["counts"]["documents"]:
+        if len(shards) != (0 if args.native_plan else manifest["counts"]["documents"]):
             raise ValueError("incomplete preparation receipts")
         fingerprint = hashlib.sha256()
         for path in [
-            args.inputs / "manifest.json",
+            manifest_path,
             args.inputs / "queries.json",
             *shards,
         ]:
@@ -351,6 +407,8 @@ def main():
             } != expected_shards:
                 raise ValueError("unexpected vector shard inventory")
         identity = {"prepared_sha256": fingerprint.hexdigest(), "probe": args.probe}
+        if args.pdf_models:
+            identity["timing"] = "live-pdf-pipeline-v1"
         cohort = args.out / "cohort.json"
         if cohort.exists() and json.loads(cohort.read_text()) != identity:
             raise ValueError("output directory belongs to a different cohort")

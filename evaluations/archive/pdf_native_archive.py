@@ -63,10 +63,14 @@ class PageSearch:
 
 
 def run(args):
-    manifest = json.loads((args.corpus / "manifest.json").read_text())
+    manifest = json.loads(
+        (
+            args.corpus / ("native-plan.json" if args.native_plan else "manifest.json")
+        ).read_text()
+    )
     docs = json.loads((args.workload / "documents.json").read_text())
     refs = json.loads(args.refs.read_text())
-    if set(docs) != set(refs):
+    if not docs.keys() <= refs.keys():
         raise ValueError("source object and tenant inventories differ")
     queries = json.loads((args.corpus / "queries.json").read_text())
     gold = json.loads((args.workload / "judgments.json").read_text())
@@ -179,15 +183,26 @@ def run(args):
                 q = probes[i % len(probes)]
                 i += 1
                 t = time.monotonic()
+                pages = []
                 try:
-                    state = "served" if read(live, q, "a", "dense") else "empty"
+                    pages = read(live, q, "a", "dense")
+                    state = "served" if pages else "empty"
                 except (ValueError, RuntimeError, OSError, KeyError) as exc:
                     state = type(exc).__name__
                 latency = time.monotonic() - t
                 latencies.append(latency)
                 traffic[state] += 1
                 stream.write(
-                    json.dumps({"id": q["id"], "seconds": latency, "state": state})
+                    json.dumps(
+                        {
+                            "id": q["id"],
+                            "seconds": latency,
+                            "state": state,
+                            "cited_page_returned": bool(
+                                set(pages).intersection(gold[q["id"]]["pages"])
+                            ),
+                        }
+                    )
                     + "\n"
                 )
                 if i % 128 == 0:
@@ -199,6 +214,23 @@ def run(args):
     try:
         started = time.monotonic()
         for name, cfg in json.loads(CONFIG.read_text()).items():
+            if args.replay_url and name == "document_units_v1":
+                producer = json.loads(cfg["producer_json"])
+                producer["config"]["ocr"]["reader"] = {
+                    "provider": "openai",
+                    "base_url": args.replay_url,
+                    "model": "officeqa-publisher-replay-v1",
+                    "api_key": "loopback-replay",
+                }
+                cfg["producer_json"] = json.dumps(producer)
+            if (
+                "sample" in manifest
+                and not args.replay_url
+                and name == "document_units_v1"
+            ):
+                producer = json.loads(cfg["producer_json"])
+                producer["config"]["ocr"]["reader"]["max_tokens"] = 8192
+                cfg["producer_json"] = json.dumps(producer)
             api("/artifacts/" + name + "/enrichment", "PUT", cfg)
         api("/indexes/b", "POST", index_config("passage", manifest["model_identity"]))
         bc = coverage("b")
@@ -235,6 +267,9 @@ def run(args):
             "ocr_failed_count",
         ):
             extraction[k] += m[k]
+    replay_counts = (
+        call(args.replay_url + "/status", "GET") if args.replay_url else None
+    )
     publish(
         args.out / "result.json",
         {
@@ -249,19 +284,28 @@ def run(args):
             "b_status": bc,
             "tenant_source_rows": len(parents),
             "extraction": dict(extraction),
+            "replay_requests": replay_counts,
             "live_closed_loop": dict(traffic),
             "live_p95_seconds": sorted(latencies)[(95 * len(latencies) - 1) // 100]
             if latencies
             else None,
         },
     )
-    return int(any(state != "served" for state in traffic))
+    return int(
+        any(state != "served" for state in traffic)
+        or bool(
+            replay_counts is not None
+            and (not replay_counts.get("mapped") or replay_counts.get("rejected"))
+        )
+    )
 
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     for key in ("workload", "refs", "corpus", "out"):
         p.add_argument("--" + key, required=True, type=Path)
+    p.add_argument("--native-plan", action="store_true")
+    p.add_argument("--replay-url")
     p.add_argument("--endpoint", required=True)
     p.add_argument("--probe", type=int, default=284)
     p.add_argument("--k", type=int, default=20)

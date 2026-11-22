@@ -488,6 +488,14 @@ query generation A while B builds. We measure query tails, availability,
 completed vectors, and time to readiness, then check B with the matching
 query encoder before switching. Controlled fixtures separately establish
 the expected outcomes for crash, stale-response, and privacy tests.
+For the page-image to passage migration, the full-scale protocol replays
+publisher text by PDF version and physical page. Its catalog maps 115,458 of
+118,524 pages. All physical pages enter the visual index and all original
+citation judgments remain eligible for scoring in the public workload. A
+separate 764-page sample of five complete PDFs, selected across document
+lengths before inference, measures real OCR from remote PDF ingestion through
+searchable passages. Replay timings and measured OCR timings are reported
+separately in the artifact as trials complete.
 
 In the native macOS trials, Antfly and LanceDB each re-embedded 251,707
 publisher-text chunks and built 616,832 searchable B rows. At two offered

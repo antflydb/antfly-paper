@@ -18,6 +18,7 @@ def main():
         type=Path,
         help="directory with result.json and rankings",
     )
+    p.add_argument("--sample-gold", type=Path)
     args = p.parse_args()
     source = args.result / "result.json"
     receipt = json.loads(source.read_text())
@@ -42,6 +43,16 @@ def main():
         }
         for row in dataset.load_questions(args.data, spec=dataset.V2)
     }
+    if "sample" in receipt["source"]:
+        if (
+            not args.sample_gold
+            or dataset.sha256_file(args.sample_gold)
+            != receipt["source"]["workload_sha256"]["public-probes.json"]
+        ):
+            raise ValueError("sample page judgments required")
+        gold = json.loads(args.sample_gold.read_text())
+    elif args.sample_gold:
+        raise ValueError("sample judgments cannot score full corpus")
     scores = {}
     pdf_migration = (
         receipt["source"].get("representations") == "pdf-images-to-passages-v1"
@@ -63,6 +74,9 @@ def main():
         json.dumps(
             {
                 "engine": receipt["engine"],
+                "population": "sample excerpt probes"
+                if args.sample_gold
+                else "90 original OfficeQA questions",
                 "source": receipt["source"]["representations"]
                 if pdf_migration
                 else receipt["source"]["source"],

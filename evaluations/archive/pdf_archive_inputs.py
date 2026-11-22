@@ -1,10 +1,8 @@
 """Prepare resumable, matched page-image and OCR passage inputs from the pinned OfficeQA archive."""
 
 import argparse
-import base64
 import fcntl
 import hashlib
-import io
 import json
 import time
 from collections import Counter
@@ -12,6 +10,9 @@ from contextlib import closing
 from pathlib import Path
 
 import dataset
+import pdf_pipeline
+import publisher_replay
+from corpus import fetch_object
 from evidence import page_id
 from native_documents import publish
 from pdf_vector_compare import MODEL, READER, embed_batch
@@ -24,14 +25,8 @@ def sha(path):
 def flush(pending, stream, models, identity):
     if not pending:
         return
-    vectors, _ = embed_batch(
-        models,
-        [row["body"] for row in pending],
-        "RETRIEVAL_DOCUMENT",
-        identity,
-    )
-    for row, vector in zip(pending, vectors, strict=True):
-        stream.write(json.dumps(row | {"b": vector}, separators=(",", ":")) + "\n")
+    for row in pdf_pipeline.embedded(pending, models, identity):
+        stream.write(json.dumps(row, separators=(",", ":")) + "\n")
     pending.clear()
 
 
@@ -67,7 +62,6 @@ def bind_ocr_schedule(out, spec, pdfs, legacy_pdfs):
 
 def prepare(args):
     import pypdfium2 as pdfium
-    from common import extract_page
 
     metadata = json.loads((args.workload / "documents.json").read_text())
     expected = json.loads((args.workload / "provenance.json").read_text())
@@ -78,10 +72,16 @@ def prepare(args):
     pdfs = [r for r in inventory["files"] if r["path"].endswith(".pdf")]
     if (
         len(pdfs) != dataset.V2.pdf_count
-        or set(metadata) != {Path(r["path"]).name for r in pdfs}
         or sum(r["physical_pages"] for r in pdfs) != 118524
     ):
         raise ValueError("incomplete OfficeQA PDF inventory")
+    if "sample" in expected:
+        selected = {r["sha256"]: r["pages"] for r in expected["sample"]}
+        pdfs = [r for r in pdfs if r["local_sha256"] in selected]
+        if selected != {r["local_sha256"]: r["physical_pages"] for r in pdfs}:
+            raise ValueError("sample does not match frozen PDF versions")
+    if set(metadata) != {Path(r["path"]).name for r in pdfs}:
+        raise ValueError("workload and PDF inventories differ")
     original = dataset.load_questions(args.data)
     if len(original) != dataset.V2.question_count or len(
         {r["uid"] for r in original}
@@ -97,6 +97,7 @@ def prepare(args):
             "filter": {},
         }
         for r in original
+        if "sample" not in expected
     )
     texts = list(dict.fromkeys(q["question"] for q in prompts))
     encoded = {}
@@ -120,18 +121,66 @@ def prepare(args):
             for n in ("documents.json", "queries.json", "judgments.json")
         },
     }
+    if "sample" in expected:
+        spec["sample"] = expected["sample"]
+        spec["workload_sha256"]["public-probes.json"] = sha(
+            args.workload / "public-probes.json"
+        )
+    replay = (
+        publisher_replay.connect(args.replay_catalog) if args.replay_catalog else None
+    )
+    if replay:
+        props = dict(replay.execute("SELECT key,value FROM meta"))
+        if (
+            props.get("text_complete") != "1"
+            or props.get("acquisition") != spec["acquisition_sha256"]
+            or props.get("model") != publisher_replay.MODEL
+        ):
+            raise ValueError("publisher catalog is incomplete or mismatched")
+        spec["reader"] = publisher_replay.MODEL
+    if args.refs:
+        refs = json.loads(args.refs.read_text())
+        if not set(metadata) <= refs.keys():
+            raise ValueError("missing source URLs")
+        spec["source_transport"] = "versioned-http"
     pdfs.sort(key=lambda r: (r["physical_pages"], r["path"]))
-    spec = bind_ocr_schedule(args.out, spec, pdfs, args.legacy_ocr_pdfs)
+    if replay:
+        if args.legacy_ocr_pdfs:
+            raise ValueError("OCR retry schedules do not apply to publisher replay")
+        marker = args.out / "identity.json"
+        if marker.exists() and json.loads(marker.read_text()) != spec:
+            raise ValueError("checkpoint identity changed")
+        if not marker.exists() and any((args.out / "receipts").glob("*.json")):
+            raise ValueError("checkpoint identity missing")
+        publish(marker, spec)
+    else:
+        spec = bind_ocr_schedule(args.out, spec, pdfs, args.legacy_ocr_pdfs)
     for q in prompts:
         q.update(a=encoded[q["question"]], b=encoded[q["question"]])
     publish(args.out / "queries.json", prompts)
+    if args.native_plan:
+        plan = spec | {
+            "native_source_plan": True,
+            "counts": {
+                "documents": len(pdfs),
+                "pages": sum(r["physical_pages"] for r in pdfs),
+                "a_rows": sum(
+                    r["physical_pages"] * (1 + len(metadata[Path(r["path"]).name]))
+                    for r in pdfs
+                ),
+            },
+        }
+        publish(args.out / "native-plan.json", plan)
+        return
     for g in ("a", "b"):
         (args.out / g / "documents").mkdir(parents=True, exist_ok=True)
     receipts = args.out / "receipts"
     receipts.mkdir(exist_ok=True)
     totals = Counter()
     for i, r in enumerate(pdfs, 1):
-        limits = (4096, 8192) if i <= spec["legacy_ocr_pdfs"] else (8192,)
+        limits = (
+            () if replay else (4096, 8192) if i <= spec["legacy_ocr_pdfs"] else (8192,)
+        )
         name = Path(r["path"]).name
         key = hashlib.sha256(name.encode()).hexdigest()
         files = {g: args.out / g / "documents" / (key + ".jsonl") for g in ("a", "b")}
@@ -147,11 +196,17 @@ def prepare(args):
                 totals.update(saved["counts"])
                 continue
         source = args.data / r["path"]
-        if not source.is_relative_to(args.data) or sha(source) != r["local_sha256"]:
+        if not source.is_relative_to(args.data) or (
+            not args.refs and sha(source) != r["local_sha256"]
+        ):
             raise ValueError("changed PDF " + key)
         counts = Counter()
         truncated = []
         started = time.monotonic()
+        if args.refs:
+            ref = refs[name]
+            source = fetch_object(ref["url"], r["local_sha256"], ref["etag"])
+            counts["bytes_fetched"] = len(source)
         tmp = {g: file.with_suffix(".tmp") for g, file in files.items()}
         with (
             closing(pdfium.PdfDocument(source)) as pdf,
@@ -166,53 +221,30 @@ def prepare(args):
                 with closing(pdf[index]) as page:
                     pid = page_id(name, index + 1)
                     row = {"id": pid, "page": pid, "views": metadata[name]}
-                    with closing(page.render(scale=2)) as bitmap:
-                        with bitmap.to_pil() as image, io.BytesIO() as stream:
-                            image.save(stream, "PNG")
-                            encoded_image = base64.b64encode(stream.getvalue()).decode()
-                            counts["visual_pixels"] += image.width * image.height
-                    media = {
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": "data:image/png;base64," + encoded_image
-                                },
-                            }
-                        ]
-                    }
-                    images, _ = embed_batch(
-                        args.models, [media], "RETRIEVAL_DOCUMENT", identity
-                    )
+                    vector = pdf_pipeline.visual(page, args.models, identity, counts)
                     a.write(
                         json.dumps(
-                            row | {"body": "", "a": images[0]}, separators=(",", ":")
+                            row | {"body": "", "a": vector}, separators=(",", ":")
                         )
                         + "\n"
                     )
                     counts["pages"] += 1
-                    output = extract_page(
+                    output = pdf_pipeline.extract(
                         page,
                         index + 1,
                         args.models,
-                        reader=READER,
-                        costs=counts,
-                        ocr_token_limits=limits,
+                        limits,
+                        replay,
+                        r["local_sha256"],
+                        counts,
                     )
                     counts[output["extraction"] + "_pages"] += 1
                     if output["extraction"] == "ocr_truncated":
                         truncated.append(index + 1)
-                    words = output["body"].split()
-                    if not words:
+                    if not output["body"].strip():
                         counts["empty_text_pages"] += 1
-                    for offset in range(0, len(words), 160):
-                        pending.append(
-                            row
-                            | {
-                                "id": pid + "#chunk=" + str(offset // 160),
-                                "body": " ".join(words[offset : offset + 160]),
-                            }
-                        )
+                    for passage in pdf_pipeline.passages(row, output["body"]):
+                        pending.append(passage)
                         counts["chunks"] += 1
                         if len(pending) == 16:
                             flush(pending, b, args.models, identity)
@@ -235,13 +267,17 @@ def prepare(args):
             f"committed {i}/{len(pdfs)} PDFs, {totals['pages']} pages, {totals['chunks']} chunks",
             flush=True,
         )
-    if totals["pages"] != 118524 or totals["documents"] != 1435 or not totals["chunks"]:
+    if (
+        totals["pages"] != sum(r["physical_pages"] for r in pdfs)
+        or totals["documents"] != len(pdfs)
+        or not totals["chunks"]
+    ):
         raise ValueError("incomplete representation corpus")
     timing = {}
     for path in receipts.glob("*.json"):
         doc = json.loads(path.read_text())
         limits = doc.get("ocr_token_limits", [4096, 8192])
-        key = ",".join(map(str, limits))
+        key = ",".join(map(str, limits)) or "publisher replay"
         group = timing.setdefault(key, Counter())
         for field in (
             "documents",
@@ -267,6 +303,13 @@ if __name__ == "__main__":
         type=int,
         help="replay the old 4096 then 8192 policy for this many initial PDFs in frozen order",
     )
+    p.add_argument("--refs", type=Path)
+    p.add_argument(
+        "--native-plan",
+        action="store_true",
+        help="write native source counts and query vectors without preparing shared rows",
+    )
+    p.add_argument("--replay-catalog", type=Path)
     p.add_argument("--models", required=True)
     p.add_argument("--subject", required=True, help="runtime binary SHA-256")
     args = p.parse_args()

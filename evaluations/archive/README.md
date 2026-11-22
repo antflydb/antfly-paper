@@ -219,3 +219,40 @@ Preparation checks the frozen inventory, renders every physical page at 144 DPI,
 The five shared-input trials measure database build and serving time using identical prepared vectors. Both generations start with the frozen tenant fields, and Antfly uses `sync_level=write` with an explicit searchable-coverage check. Each trial verifies the distinct expected row counts of A and B, serves dense A queries during B construction, and switches the application route after B coverage and a scoped dense probe. The sixth trial supplies content-addressed PDF URLs directly to Antfly, measures managed indexing and switches the native alias. It uses the release's native text extraction, OCR fallback and 160-token chunker. The application OCR token policy applies only to shared-input preparation. The native trial reports the engine's own OCR outcomes. Tenant-visible source copies and native extraction counts are reported separately. Correction and revocation are exercised on the authored fixture.
 
 The campaign records original-question citation recall@20, tenant-filtered recall, eligible results, build and cutover time, live traffic, and final database directory size. A is scored on dense retrieval. B is scored on dense, lexical and hybrid retrieval. Each channel gets 100 candidates. A failed subject writes an attempt receipt and independent subjects continue. Keep the host-native and VM deployment boundaries with any reported latency. The live query schedules differ between the matched open-loop runs and the native closed-loop alias diagnostic.
+
+#### Publisher replay and measured raw-PDF sample
+
+Use the pinned private V2 dataset, frozen workload, Antfly v0.3.2 binary and model bundles described above. Keep all generated catalogs, PDF hashes, rendered images, rankings and database directories on private storage. The public fixture uses synthetic documents.
+
+Build the auxiliary raster fingerprint tool from a clean checkout of the Antfly v0.3.2 source with its matching Zig toolchain. It uses the release’s PDF renderer to reproduce the PNG bytes supplied to a remote image reader. The database under test is the released executable.
+
+```sh
+git clone --depth 1 --branch v0.3.2 https://github.com/antflydb/antfly.git "$BUILD/antfly"
+cp evaluations/archive/pdf_render_hashes.zig "$BUILD/antfly/zig/lib/pdf/src/pdf_bench.zig"
+(cd "$BUILD/antfly/zig" && zig build lib-pdf-bench)
+RENDERER="$BUILD/antfly/zig/zig-out/bin/lib-pdf-bench"
+EVAL=evaluations/archive
+python "$EVAL/publisher_replay.py" build --data "$OFFICEQA" --catalog "$CATALOG" --renderer "$RENDERER"
+python "$EVAL/officeqa_sample.py" --data "$OFFICEQA" --workload "$WORKLOAD" --out "$PRIVATE/sample-workload"
+```
+
+The catalog checks the upstream acquisition and indexes every PDF version and physical page, including missing publisher text. Omitting `--renderer` builds the text lookup first. Running the command again with the renderer adds the native raster index. Native Antfly sends a rendered page through its configured OpenAI-compatible reader to a loopback replay server. A matching render resolves to the publisher text associated with the pinned source page. Identical rendered bytes with conflicting publisher values and unknown renders are errors. A known missing page returns empty text and is counted. The application uses the version and page lookup in the same catalog. These requests incur no OCR model inference. To qualify the release on scanned, missing-text and born-digital fixture pages, run `qualify_publisher_replay.py --endpoint "$ANTFLY_URL" --renderer "$RENDERER" --out "$PRIVATE/check"` with the standalone and admin environment from the PDF fixture above.
+
+Run each cohort on an exclusive benchmark host. The native trial needs only the verified source inventory, query vectors and PDF URLs. It can start before the application prepares reference vectors. The matched trials build both generations by fetching the original source objects and computing vectors inside the timed phases. All five engines use the same application pipeline, version-checked HTTP objects, tenant overlays and probe budget. The shared preparation step produces independent coverage counts and cost receipts. Report its elapsed time separately. Native Antfly uses its own chunker and managed alias.
+
+```sh
+run_study() {
+  python "$EVAL/document_study.py" "$@" --data "$OFFICEQA" --catalog "$CATALOG" \
+    --workload "$WORKLOAD" --binary "$ANTFLY_BIN" --models-dir "$MODELS_DIR"
+}
+for stage in native prepare matched; do
+  run_study "$stage" --sample-workload "$PRIVATE/sample-workload" --out "$PRIVATE/sample" --state "$DB_STATE/sample"
+done
+for stage in prepare matched native; do
+  run_study "$stage" --out "$PRIVATE/full" --state "$DB_STATE/full"
+done
+```
+
+Use `--engines antfly lance` and `--engines postgres opensearch vespa` on successive matched invocations to control VM lifetime. The sample uses an 8,192-output-token ceiling and real LightOnOCR. Its public and scoped excerpt probes test physical-page retrieval on the small corpus. Full replay uses the original question and citation population. The sample writes `cost-estimate.json` after preparation. It gives observed per-document wall time, OCR calls and reported token coverage, and estimates serial shared-worker time by multiplying each stratum's measured seconds per page by its total pages. Replay timing, sample timing, and the estimated OCR service time are separate measurements.
+
+Run `python "$EVAL/document_study_report.py" --root "$PRIVATE" --out "$PRIVATE/aggregate.json"` to collect finished trial receipts from `sample/` and `full/`. The report preserves pending or failed trials and distinguishes sample excerpt probes from the full original-question scores.

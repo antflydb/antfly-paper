@@ -1,5 +1,6 @@
 import hashlib
 import json
+import sqlite3
 import tempfile
 import unittest
 from collections import Counter
@@ -16,6 +17,29 @@ from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_replay_missing_and_conflicting_images(self):
+        from publisher_replay import image_text, page_text
+
+        db = sqlite3.connect(":memory:")
+        self.addCleanup(db.close)
+        db.executescript(
+            "CREATE TABLE pages(sha,page,body); CREATE TABLE renders(sha,page,png);"
+        )
+        image = b"same rendered image"
+        digest = hashlib.sha256(image).hexdigest()
+        for sha in ["v1", "v2"]:
+            db.execute("INSERT INTO renders VALUES (?,1,?)", (sha, digest))
+            db.execute("INSERT INTO pages VALUES (?,1,NULL)", (sha,))
+        self.assertIsNone(page_text(db, "v1", 1))
+        self.assertIsNone(image_text(db, image))
+        with self.assertRaisesRegex(ValueError, "unknown source"):
+            page_text(db, "v3", 1)
+        with self.assertRaisesRegex(ValueError, "unrecognized"):
+            image_text(db, b"another page")
+        db.execute("UPDATE pages SET body='text' WHERE sha='v2'")
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            image_text(db, image)
+
     def test_ocr_schedule_resume(self):
         inventory = [{"path": name} for name in ("a.pdf", "b.pdf")]
         with tempfile.TemporaryDirectory() as d:
