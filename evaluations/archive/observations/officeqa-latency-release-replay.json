@@ -1,0 +1,295 @@
+{
+  "date": "2026-11-22",
+  "host": "local Apple M4 Max, macOS 27.0.1 arm64",
+  "scope": "Isolated native standalone, one paired run in fixed release order. No concurrent backfill. Both lexical profiles precede both credential fixtures.",
+  "lexical_protocol": "Same restored sorted A index, same archive reader API key and six-year retention predicate, shuffled arms, two warmups and nine measured rounds per arm. Compared ordered top-100 IDs and scores across releases.",
+  "credential_protocol": "Fresh 4096-row protected table for each release using fairness_control.trial(\"antfly_policy\"). Alternating Basic and API key for the same users, identical queries, one warmup cycle.",
+  "releases": {
+    "v0.3.1": {
+      "binary_sha256": "c8f04db1564bf8a82d39999cb7f64798685bfbfa806827a7c41055c9bfe09e7d",
+      "lexical": {
+        "query_id": "86:archive:after-schema-change:1",
+        "words": 100,
+        "distinct_lowercase_words": 69,
+        "warmup_rounds_excluded": 2,
+        "measured_rounds": 9,
+        "cells": {
+          "full_100": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 314.899,
+            "engine_ms": 306.653,
+            "execute_ms": 305.861,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_20": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 313.905,
+            "engine_ms": 306.223,
+            "execute_ms": 305.852,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_1": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 311.538,
+            "engine_ms": 303.763,
+            "execute_ms": 303.501,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "first16": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 59.946,
+            "engine_ms": 52.024,
+            "execute_ms": 50.677,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "first50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 183.827,
+            "engine_ms": 175.658,
+            "execute_ms": 174.004,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "second50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 187.688,
+            "engine_ms": 179.539,
+            "execute_ms": 178.673,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "unique": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 315.499,
+            "engine_ms": 307.282,
+            "execute_ms": 306.464,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_1": {
+            "allowed": 1,
+            "rows": 616832,
+            "client_ms": 312.454,
+            "engine_ms": 295.527,
+            "execute_ms": 295.382,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_20": {
+            "allowed": 20,
+            "rows": 616832,
+            "client_ms": 320.568,
+            "engine_ms": 296.953,
+            "execute_ms": 296.785,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_100": {
+            "allowed": 100,
+            "rows": 616832,
+            "client_ms": 324.39,
+            "engine_ms": 297.025,
+            "execute_ms": 296.888,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "match_all": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 26.999,
+            "engine_ms": 19.432,
+            "execute_ms": 19.185,
+            "same_ordered_ids_as_full_prefix": false
+          }
+        },
+        "rank_score_sha256": "7223e8fcf6f79c2c7465e24dceb612d5d2e55b80b70a05b7257e6f3fb6dc8048"
+      },
+      "credentials": {
+        "minimum_membership_recall": {
+          "basic": 1.0,
+          "api_key": 1.0
+        },
+        "timing": {
+          "basic": {
+            "write_batch": {
+              "p50_ms": 75.936,
+              "p95_ms": 82.778,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 49.327,
+              "p95_ms": 50.386,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 50.192,
+              "p95_ms": 52.037,
+              "n": 64
+            }
+          },
+          "api_key": {
+            "write_batch": {
+              "p50_ms": 27.652,
+              "p95_ms": 50.702,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 1.283,
+              "p95_ms": 1.412,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 2.007,
+              "p95_ms": 2.219,
+              "n": 64
+            }
+          }
+        }
+      }
+    },
+    "v0.3.2": {
+      "binary_sha256": "92f425047f9760c1f70b7c85fd2eff2d56cb19ca3ee18a1264dfc5e78547e38d",
+      "lexical": {
+        "query_id": "86:archive:after-schema-change:1",
+        "words": 100,
+        "distinct_lowercase_words": 69,
+        "warmup_rounds_excluded": 2,
+        "measured_rounds": 9,
+        "cells": {
+          "full_100": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 318.487,
+            "engine_ms": 308.942,
+            "execute_ms": 308.119,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_20": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 315.565,
+            "engine_ms": 306.478,
+            "execute_ms": 306.062,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_1": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 314.54,
+            "engine_ms": 305.645,
+            "execute_ms": 305.401,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "first16": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 61.727,
+            "engine_ms": 52.475,
+            "execute_ms": 51.365,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "first50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 187.742,
+            "engine_ms": 177.941,
+            "execute_ms": 175.942,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "second50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 189.017,
+            "engine_ms": 179.295,
+            "execute_ms": 178.192,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "unique": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 320.942,
+            "engine_ms": 311.459,
+            "execute_ms": 310.668,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_1": {
+            "allowed": 1,
+            "rows": 616832,
+            "client_ms": 300.002,
+            "engine_ms": 298.923,
+            "execute_ms": 296.025,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_20": {
+            "allowed": 20,
+            "rows": 616832,
+            "client_ms": 323.763,
+            "engine_ms": 322.428,
+            "execute_ms": 299.741,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_100": {
+            "allowed": 100,
+            "rows": 616832,
+            "client_ms": 333.238,
+            "engine_ms": 330.807,
+            "execute_ms": 298.04,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "match_all": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 28.599,
+            "engine_ms": 19.82,
+            "execute_ms": 19.492,
+            "same_ordered_ids_as_full_prefix": false
+          }
+        },
+        "rank_score_sha256": "7223e8fcf6f79c2c7465e24dceb612d5d2e55b80b70a05b7257e6f3fb6dc8048"
+      },
+      "credentials": {
+        "minimum_membership_recall": {
+          "basic": 1.0,
+          "api_key": 1.0
+        },
+        "timing": {
+          "basic": {
+            "write_batch": {
+              "p50_ms": 76.433,
+              "p95_ms": 77.793,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 49.62,
+              "p95_ms": 50.947,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 50.169,
+              "p95_ms": 51.446,
+              "n": 64
+            }
+          },
+          "api_key": {
+            "write_batch": {
+              "p50_ms": 28.296,
+              "p95_ms": 29.866,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 1.236,
+              "p95_ms": 1.461,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 1.995,
+              "p95_ms": 2.283,
+              "n": 64
+            }
+          }
+        }
+      }
+    }
+  }
+}
