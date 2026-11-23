@@ -17,6 +17,39 @@ from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_backfill_arrival_cap_and_completed_percentiles(self):
+        from latency_backfill import summarize, traffic
+
+        pool = Mock()
+        pending = Mock()
+        pending.done.return_value = False
+        pool.submit.side_effect = lambda fn, q, due: Mock(
+            done=pending.done,
+            result=lambda: {
+                "id": q["id"],
+                "scheduled": due,
+                "digest": "rank",
+                "latency": 0.03,
+                "channels": {"lexical": 0.01, "dense": 0.02},
+            },
+        )
+        with (
+            patch("latency_backfill.ThreadPoolExecutor") as executor,
+            patch("latency_backfill.pause_until"),
+        ):
+            executor.return_value.__enter__.return_value = pool
+            rows = traffic(None, [{"id": str(i)} for i in range(10)], {}, 0)
+        data = summarize(rows)
+        self.assertEqual(
+            (data["scheduled"], data["completed"], data["missed"]), (10, 8, 2)
+        )
+        self.assertEqual(data["p95_ms"], 30)
+        self.assertEqual(
+            {row["id"] for row in rows if row.get("error") == "concurrency_limit"},
+            {"8", "9"},
+        )
+        self.assertIsNone(summarize([{"error": "ineligible"}])["p95_ms"])
+
     def test_replay_missing_and_conflicting_images(self):
         from publisher_replay import image_text, page_text
 
