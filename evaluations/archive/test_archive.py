@@ -17,6 +17,25 @@ from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_paced_backfill_retries_committed_identity(self):
+        from latency_backfill import backfill
+
+        engine = Mock()
+        throttle = RuntimeError('{"retryable":true,"retry_after_ms":1250}')
+        throttle.__cause__ = HTTPError("url", 429, "backpressured", {}, None)
+        engine.insert.side_effect = [throttle, None]
+        batch = [{"id": "one"}]
+        with (
+            patch("latency_backfill.time.monotonic", return_value=1),
+            patch("latency_backfill.time.sleep") as sleeper,
+        ):
+            writes, retries, error = backfill(engine, [batch], 1, 1.2)
+        self.assertEqual((writes, retries, error), ([[0, 0]], 1, None))
+        self.assertEqual(
+            [args.args[0] for args in engine.insert.call_args_list], [batch, batch]
+        )
+        sleeper.assert_any_call(1.25)
+
     def test_backfill_arrival_cap_and_completed_percentiles(self):
         from latency_backfill import summarize, traffic
 

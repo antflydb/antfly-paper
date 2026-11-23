@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import resource
 import secrets
 import subprocess
@@ -48,12 +49,26 @@ def pause_until(target):
 
 def backfill(engine, batches, start, interval):
     timings = []
+    retries = 0
     for i, batch in enumerate(batches):
         pause_until(start + i * interval)
         sent = time.monotonic()
-        engine.insert(batch)
+        while True:
+            try:
+                engine.insert(batch)
+                break
+            except (RuntimeError, OSError) as exc:
+                status = getattr(exc.__cause__, "code", None)
+                if status != 429 or '"retryable":true' not in str(exc):
+                    return timings, retries, f"{type(exc).__name__}:{status}"
+                delay = re.search(r'"retry_after_ms":(\d+)', str(exc))
+                seconds = max(0.05, int(delay[1]) / 1000 if delay else 1)
+                if time.monotonic() + seconds > start + 420:
+                    return timings, retries, "write_backpressure_deadline"
+                retries += 1
+                time.sleep(seconds)
         timings.append([sent - start, time.monotonic() - start])
-    return timings
+    return timings, retries, None
 
 
 def traffic(engine, queries, eligible, start):
@@ -224,14 +239,14 @@ def run(args):
         with ThreadPoolExecutor(max_workers=1) as pool:
             writer = pool.submit(backfill, b, batches, start, 1.2)
             loaded = traffic(a, queries, eligible, start)
-            writes = writer.result()
-        b_counts = wait_for_indexed_rows(b, 176 * 128, "paced B")
+            publish(args.out / "during.json", loaded)
+            writes, retries, write_error = writer.result()
+        b_counts = wait_for_indexed_rows(b, len(writes) * 128, "paced B")
+        end_write = writes[-1][1] if writes else 0
         timings = [r["scheduled"] + r.get("latency", 0) for r in loaded]
         overlapped = sum(
-            "digest" in r and r["scheduled"] + r["latency"] <= writes[-1][1]
-            for r in loaded
+            "digest" in r and r["scheduled"] + r["latency"] <= end_write for r in loaded
         )
-        publish(args.out / "during.json", loaded)
         publish(args.out / "write-times.json", writes)
         publish(
             args.out / "summary.json",
@@ -243,11 +258,19 @@ def run(args):
                 baseline=summarize(baseline),
                 during=summarize(loaded),
                 write_batches=len(writes),
-                last_write_seconds=writes[-1][1],
+                offered_write_batches=len(batches),
+                write_retries=retries,
+                write_error=write_error,
+                last_write_seconds=end_write,
                 last_read_seconds=max(timings),
                 completed_before_last_write=overlapped,
                 latest_write_dispatch_lag_ms=round(
-                    1000 * max(sent - i * 1.2 for i, (sent, _) in enumerate(writes)), 3
+                    1000
+                    * max(
+                        (sent - i * 1.2 for i, (sent, _) in enumerate(writes)),
+                        default=0,
+                    ),
+                    3,
                 ),
                 baseline_during_rank_changes=sum(
                     r["digest"] != s["digest"]
