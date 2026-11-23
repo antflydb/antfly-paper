@@ -1,0 +1,127 @@
+{
+  "trials": {
+    "release": {
+      "binary_sha256": "92f425047f9760c1f70b7c85fd2eff2d56cb19ca3ee18a1264dfc5e78547e38d",
+      "nofile_soft": 65536,
+      "a_counts": {
+        "full_text_index_v1": 616832,
+        "vec": 616832
+      },
+      "b_counts": {
+        "full_text_index_v0": 22528,
+        "vec": 22528
+      },
+      "baseline": {
+        "scheduled": 408,
+        "completed": 408,
+        "missed": 0,
+        "errors": {},
+        "ineligible": 0,
+        "p95_ms": 410.23,
+        "lexical_p95_ms": 256.381,
+        "dense_p95_ms": 55.989
+      },
+      "during": {
+        "scheduled": 408,
+        "completed": 408,
+        "missed": 0,
+        "errors": {},
+        "ineligible": 0,
+        "p95_ms": 382.787,
+        "lexical_p95_ms": 249.592,
+        "dense_p95_ms": 23.612
+      },
+      "write_batches": 176,
+      "offered_write_batches": 176,
+      "write_retries": 0,
+      "write_error": null,
+      "last_write_seconds": 210.0937391660409,
+      "last_read_seconds": 203.7240613750182,
+      "completed_before_last_write": 408,
+      "latest_write_dispatch_lag_ms": 149.929,
+      "baseline_during_rank_changes": 0,
+      "baseline_during_comparable": 408,
+      "queries_sha256": "9659ca276c3e98d7e6c5d2ff2590813ac188aa09619a8e6498e0818085172771",
+      "judgments_sha256": "5002d61477bce580518a9725802f1e7abd7e8ee0a984f54d6a8d7affe209e2a2",
+      "b_ids_sha256": "1ebfabec8edf1437124e54569cac499dc5436f91e2f59431b3b6e0a45d15a91b",
+      "b_input_sha256": "585c4958da9c8798a1d4df765b0c147a730d4df33530b5c9a131d838a5338af5"
+    },
+    "candidate": {
+      "binary_sha256": "62b455bb9bad35edfb25526a04708529249aae48997f941293577a5b03b06478",
+      "nofile_soft": 65536,
+      "a_counts": {
+        "full_text_index_v1": 616832,
+        "vec": 616832
+      },
+      "b_counts": {
+        "full_text_index_v0": 22528,
+        "vec": 22528
+      },
+      "baseline": {
+        "scheduled": 408,
+        "completed": 408,
+        "missed": 0,
+        "errors": {},
+        "ineligible": 0,
+        "p95_ms": 252.106,
+        "lexical_p95_ms": 71.842,
+        "dense_p95_ms": 48.701
+      },
+      "during": {
+        "scheduled": 408,
+        "completed": 408,
+        "missed": 0,
+        "errors": {},
+        "ineligible": 0,
+        "p95_ms": 239.992,
+        "lexical_p95_ms": 67.968,
+        "dense_p95_ms": 28.997
+      },
+      "write_batches": 176,
+      "offered_write_batches": 176,
+      "write_retries": 0,
+      "write_error": null,
+      "last_write_seconds": 210.1928954590112,
+      "last_read_seconds": 203.65545424999436,
+      "completed_before_last_write": 408,
+      "latest_write_dispatch_lag_ms": 150.044,
+      "baseline_during_rank_changes": 0,
+      "baseline_during_comparable": 408,
+      "queries_sha256": "9659ca276c3e98d7e6c5d2ff2590813ac188aa09619a8e6498e0818085172771",
+      "judgments_sha256": "5002d61477bce580518a9725802f1e7abd7e8ee0a984f54d6a8d7affe209e2a2",
+      "b_ids_sha256": "1ebfabec8edf1437124e54569cac499dc5436f91e2f59431b3b6e0a45d15a91b",
+      "b_input_sha256": "585c4958da9c8798a1d4df765b0c147a730d4df33530b5c9a131d838a5338af5"
+    }
+  },
+  "baseline_comparable": 408,
+  "baseline_rank_changes": 0,
+  "baseline_common_query_p95_ms": {
+    "release": 410.23,
+    "candidate": 252.106
+  },
+  "during_comparable": 408,
+  "during_rank_changes": 0,
+  "during_common_query_p95_ms": {
+    "release": 382.787,
+    "candidate": 239.992
+  },
+  "protocol": {
+    "host": "Wolfspider, native macOS arm64, internal SSD copy-on-write restores",
+    "order": [
+      "shipped v0.3.2",
+      "0.3.2+v03.7f6031aebd ReleaseFast"
+    ],
+    "replications_per_binary": 1,
+    "read_qps": 2,
+    "max_in_flight": 8,
+    "read_auth": "scoped API key",
+    "hybrid": "lexical then dense, depth 100 per channel, 20 distinct pages",
+    "write_batch_size": 128,
+    "write_interval_seconds": 1.2,
+    "b_inputs": "frozen replacement vectors, no OCR or embedding inference during measurement",
+    "incomplete_setup_attempts": [
+      "External database volume, first release baseline stopped at client concurrency cap; no complete pair.",
+      "External database volume, second release attempt stopped on retryable HTTP 429; no complete pair."
+    ]
+  }
+}

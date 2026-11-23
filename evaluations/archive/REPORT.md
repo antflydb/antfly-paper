@@ -28,6 +28,8 @@ Both engines consumed the same publisher-text corpus and the same frozen query v
 
 Each point aggregates one minute of the build. The last bin ends at readiness and may include fewer arrivals. The bundled [plotting script](migration_figure.py) reads the aggregate JSON directly.
 
+In a separate release-to-release check with scoped API keys, all 408 evolved hybrid queries completed while 22,528 frozen B rows were indexed. Client p95 fell from 383 ms on v0.3.2 to 240 ms on ReleaseFast commit `7f6031aebd`. The ordered physical-page results matched for every query. [Paired protocol and results](COMPARABILITY.md#releasefast-backport-of-1756)
+
 ## Which evidence pages came back?
 
 The corpus has 1,435 PDFs, 118,524 physical pages, 90 original questions and 823 distinct cited question–page pairs. Each schema phase has 408 eligible tenant/filter variants. The client requests 100 candidates per channel and returns up to 20 distinct physical pages. Recall is the mean fraction of each variant’s eligible cited pages retrieved. “All” is the fraction of variants for which every eligible cited page was returned. [Corpus verification](observations/corpus-verification.json)

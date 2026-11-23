@@ -507,6 +507,12 @@ was $+1.2$ percentage points (95\% bootstrap interval $[-1.0,+3.8]$).
 These single trials used a shared application-side BGE worker and a client
 cutover. The artifact reports per-channel recall and timing boundaries.
 
+A separate paired trial on the same host measured a filtered lexical scoring
+optimization. With scoped API keys, all 408 evolved hybrid queries completed
+while 22,528 frozen B rows were indexed. Client p95 fell from 383 ms on
+v0.3.2 to 240 ms on the optimized release-branch build. Every query returned
+the same ordered list of physical pages.
+
 Secondary experiments measure serving-only versus serving-with-backfill under
 fixed offered load, alongside an isolated-inference control with equal total
 resources and the same models. They report query tails, errors, queue growth
