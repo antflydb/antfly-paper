@@ -16,6 +16,12 @@ def summarize(root):
             "reader": "LightOnOCR" if cohort == "sample" else "publisher replay",
             "trials": {},
         }
+        skipped = cohort_dir / "skipped.json"
+        if skipped.is_file():
+            detail = json.loads(skipped.read_text())
+            row["stopped"] = {
+                k: detail[k] for k in ("reason", "committed_pdfs", "committed_pages")
+            }
         for engine in (
             "antfly",
             "postgres",
@@ -28,7 +34,9 @@ def summarize(root):
                 "native-results" if engine == "antfly-native" else "matched-results"
             )
             marker = directory / (engine + ".json")
-            trial = row["trials"][engine] = {"state": "queued"}
+            trial = row["trials"][engine] = {
+                "state": "skipped" if "stopped" in row else "queued"
+            }
             if not marker.exists():
                 continue
             status = json.loads(marker.read_text())
