@@ -1,0 +1,467 @@
+[
+  {
+    "trial": "trial-1-antfly",
+    "sha256": "a56e46536e438f547d03ad59e3d7d11ac4d5ef9dd4472e14e1889c915fc6adfa",
+    "subject": {
+      "name": "main-30b018e12419",
+      "commit": "30b018e12419f7b43dd36ef29e6ebab2a53338ff",
+      "image": "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d",
+      "binary_sha256": "1c83f84b562cd7658593a7418263d31c22bc5cff9e8fcc56e1336c51e2276fb0",
+      "build_profile": "official-release-v0.3.1-linux-arm64-gnu",
+      "manifest_sha256": "e2bc0f0118911fbf69ebb6927860a40aae44cdb2c4a89795a0283ddf231466d4"
+    },
+    "checks": {
+      "native-and-scanned-routing": true,
+      "qualification-extracted-content": true,
+      "real-detector-span-control": true,
+      "permissioned-semantic-top1": true,
+      "protected-text-and-relevance": true,
+      "protected-embedding-model-boundary": true,
+      "protected-fulltext": true,
+      "committed-artifacts-survive-restart": true,
+      "held-update-converges-and-delete-persists": true,
+      "permission-restriction": true,
+      "migration-new-space-vectors": true,
+      "vector-oracle-negative-controls": true,
+      "migration-old-space-still-consistent": true,
+      "rollback-new-a-generation": true,
+      "scaled-ingest-complete-counts": true,
+      "backfill-complete-counts": true,
+      "fixed-load-protected-output": true,
+      "backfill-completed": true
+    },
+    "phases": [
+      {
+        "name": "serving-only",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 223.24968749998675,
+            "p95": 238.7552687500076
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        }
+      },
+      {
+        "name": "serving-with-backfill",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 223.2640624999931,
+            "p95": 399.33684199998254
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        },
+        "completed_target_documents": 1024,
+        "window_and_completion_seconds": 60.1046915,
+        "backfill_completion_seconds": 25.99477975000002,
+        "offered_qps": 2.0,
+        "window_seconds": 60.0,
+        "model_placement": "isolated shared remote service in both architectures; equal service caps"
+      }
+    ],
+    "not_run": [
+      "natural document corpus generalization",
+      "on-disk privacy audit",
+      "co-located inference comparison",
+      "exact response-before-commit internal failpoint"
+    ]
+  },
+  {
+    "trial": "trial-1-postgres",
+    "sha256": "ce75d5081c8981c0a1a96262ce13ef770bb5c93f8ef608e865d6e1f57151464b",
+    "subject": {
+      "name": "main-30b018e12419",
+      "commit": "30b018e12419f7b43dd36ef29e6ebab2a53338ff",
+      "image": "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d",
+      "binary_sha256": "1c83f84b562cd7658593a7418263d31c22bc5cff9e8fcc56e1336c51e2276fb0",
+      "build_profile": "official-release-v0.3.1-linux-arm64-gnu",
+      "manifest_sha256": "e2bc0f0118911fbf69ebb6927860a40aae44cdb2c4a89795a0283ddf231466d4"
+    },
+    "checks": {
+      "native-and-scanned-routing": true,
+      "qualification-extracted-content": true,
+      "real-detector-span-control": true,
+      "permissioned-semantic-top1": true,
+      "protected-text-and-relevance": true,
+      "protected-embedding-model-boundary": true,
+      "protected-fulltext": true,
+      "committed-artifacts-survive-restart": true,
+      "held-update-converges-and-delete-persists": true,
+      "permission-restriction": true,
+      "migration-new-space-vectors": true,
+      "migration-old-space-still-consistent": true,
+      "rollback-new-a-generation": true,
+      "scaled-ingest-complete-counts": true,
+      "backfill-complete-counts": true,
+      "fixed-load-protected-output": true,
+      "backfill-completed": true
+    },
+    "phases": [
+      {
+        "name": "serving-only",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 158.82108300000652,
+            "p95": 171.15103540001542
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        }
+      },
+      {
+        "name": "serving-with-backfill",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 169.23347900001318,
+            "p95": 343.24098780004414
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        },
+        "completed_target_documents": 1024,
+        "window_and_completion_seconds": 59.77504620800002,
+        "backfill_completion_seconds": 11.918307083000002,
+        "offered_qps": 2.0,
+        "window_seconds": 60.0,
+        "model_placement": "isolated shared remote service in both architectures; equal service caps"
+      }
+    ],
+    "not_run": [
+      "natural document corpus generalization",
+      "on-disk privacy audit",
+      "co-located inference comparison",
+      "exact response-before-commit internal failpoint"
+    ]
+  },
+  {
+    "trial": "trial-2-antfly",
+    "sha256": "a9823c86de4bac31b4fd305fb451270bddc6601f8cc69f74b5fa84cf8af287bb",
+    "subject": {
+      "name": "main-30b018e12419",
+      "commit": "30b018e12419f7b43dd36ef29e6ebab2a53338ff",
+      "image": "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d",
+      "binary_sha256": "1c83f84b562cd7658593a7418263d31c22bc5cff9e8fcc56e1336c51e2276fb0",
+      "build_profile": "official-release-v0.3.1-linux-arm64-gnu",
+      "manifest_sha256": "e2bc0f0118911fbf69ebb6927860a40aae44cdb2c4a89795a0283ddf231466d4"
+    },
+    "checks": {
+      "native-and-scanned-routing": true,
+      "qualification-extracted-content": true,
+      "real-detector-span-control": true,
+      "permissioned-semantic-top1": true,
+      "protected-text-and-relevance": true,
+      "protected-embedding-model-boundary": true,
+      "protected-fulltext": true,
+      "committed-artifacts-survive-restart": true,
+      "held-update-converges-and-delete-persists": true,
+      "permission-restriction": true,
+      "migration-new-space-vectors": true,
+      "vector-oracle-negative-controls": true,
+      "migration-old-space-still-consistent": true,
+      "rollback-new-a-generation": true,
+      "scaled-ingest-complete-counts": true,
+      "backfill-complete-counts": true,
+      "fixed-load-protected-output": true,
+      "backfill-completed": true
+    },
+    "phases": [
+      {
+        "name": "serving-only",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 223.47608299999422,
+            "p95": 237.09279340000933
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        }
+      },
+      {
+        "name": "serving-with-backfill",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 233.57058299998812,
+            "p95": 466.73063925001657
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        },
+        "completed_target_documents": 1024,
+        "window_and_completion_seconds": 59.95157662500003,
+        "backfill_completion_seconds": 25.78853325,
+        "offered_qps": 2.0,
+        "window_seconds": 60.0,
+        "model_placement": "isolated shared remote service in both architectures; equal service caps"
+      }
+    ],
+    "not_run": [
+      "natural document corpus generalization",
+      "on-disk privacy audit",
+      "co-located inference comparison",
+      "exact response-before-commit internal failpoint"
+    ]
+  },
+  {
+    "trial": "trial-2-postgres",
+    "sha256": "670bfd9bf7cb5683338ae56b23fe700d74a9443d20009b10ec6fc338aa9ea8d0",
+    "subject": {
+      "name": "main-30b018e12419",
+      "commit": "30b018e12419f7b43dd36ef29e6ebab2a53338ff",
+      "image": "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d",
+      "binary_sha256": "1c83f84b562cd7658593a7418263d31c22bc5cff9e8fcc56e1336c51e2276fb0",
+      "build_profile": "official-release-v0.3.1-linux-arm64-gnu",
+      "manifest_sha256": "e2bc0f0118911fbf69ebb6927860a40aae44cdb2c4a89795a0283ddf231466d4"
+    },
+    "checks": {
+      "native-and-scanned-routing": true,
+      "qualification-extracted-content": true,
+      "real-detector-span-control": true,
+      "permissioned-semantic-top1": true,
+      "protected-text-and-relevance": true,
+      "protected-embedding-model-boundary": true,
+      "protected-fulltext": true,
+      "committed-artifacts-survive-restart": true,
+      "held-update-converges-and-delete-persists": true,
+      "permission-restriction": true,
+      "migration-new-space-vectors": true,
+      "migration-old-space-still-consistent": true,
+      "rollback-new-a-generation": true,
+      "scaled-ingest-complete-counts": true,
+      "backfill-complete-counts": true,
+      "fixed-load-protected-output": true,
+      "backfill-completed": true
+    },
+    "phases": [
+      {
+        "name": "serving-only",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 173.58512549999716,
+            "p95": 263.0961149000043
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        }
+      },
+      {
+        "name": "serving-with-backfill",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 156.05368799998587,
+            "p95": 425.4469339999942
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        },
+        "completed_target_documents": 1024,
+        "window_and_completion_seconds": 59.78894733300004,
+        "backfill_completion_seconds": 13.541711832999994,
+        "offered_qps": 2.0,
+        "window_seconds": 60.0,
+        "model_placement": "isolated shared remote service in both architectures; equal service caps"
+      }
+    ],
+    "not_run": [
+      "natural document corpus generalization",
+      "on-disk privacy audit",
+      "co-located inference comparison",
+      "exact response-before-commit internal failpoint"
+    ]
+  },
+  {
+    "trial": "trial-3-antfly",
+    "sha256": "12d2ee84375f627047ab6caa1d43becda5aeda9f2df3b9e5b1de1f96fcba0f24",
+    "subject": {
+      "name": "main-30b018e12419",
+      "commit": "30b018e12419f7b43dd36ef29e6ebab2a53338ff",
+      "image": "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d",
+      "binary_sha256": "1c83f84b562cd7658593a7418263d31c22bc5cff9e8fcc56e1336c51e2276fb0",
+      "build_profile": "official-release-v0.3.1-linux-arm64-gnu",
+      "manifest_sha256": "e2bc0f0118911fbf69ebb6927860a40aae44cdb2c4a89795a0283ddf231466d4"
+    },
+    "checks": {
+      "native-and-scanned-routing": true,
+      "qualification-extracted-content": true,
+      "real-detector-span-control": true,
+      "permissioned-semantic-top1": true,
+      "protected-text-and-relevance": true,
+      "protected-embedding-model-boundary": true,
+      "protected-fulltext": true,
+      "committed-artifacts-survive-restart": true,
+      "held-update-converges-and-delete-persists": true,
+      "permission-restriction": true,
+      "migration-new-space-vectors": true,
+      "vector-oracle-negative-controls": true,
+      "migration-old-space-still-consistent": true,
+      "rollback-new-a-generation": true,
+      "scaled-ingest-complete-counts": true,
+      "backfill-complete-counts": true,
+      "fixed-load-protected-output": true,
+      "backfill-completed": true
+    },
+    "phases": [
+      {
+        "name": "serving-only",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 214.71237449999592,
+            "p95": 232.98005769998724
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        }
+      },
+      {
+        "name": "serving-with-backfill",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 219.4452495000121,
+            "p95": 485.1969621499876
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        },
+        "completed_target_documents": 1024,
+        "window_and_completion_seconds": 59.905655457999956,
+        "backfill_completion_seconds": 25.73550841599996,
+        "offered_qps": 2.0,
+        "window_seconds": 60.0,
+        "model_placement": "isolated shared remote service in both architectures; equal service caps"
+      }
+    ],
+    "not_run": [
+      "natural document corpus generalization",
+      "on-disk privacy audit",
+      "co-located inference comparison",
+      "exact response-before-commit internal failpoint"
+    ]
+  },
+  {
+    "trial": "trial-3-postgres",
+    "sha256": "da15239316990e881d36e63e17fcbc74e84fcce10890e6c408156a31688696bd",
+    "subject": {
+      "name": "main-30b018e12419",
+      "commit": "30b018e12419f7b43dd36ef29e6ebab2a53338ff",
+      "image": "ghcr.io/antflydb/antfly@sha256:5df6e5af4ad41c4f8b6b47497ed4618bb738faeac75525a38fa682cba2565d6d",
+      "binary_sha256": "1c83f84b562cd7658593a7418263d31c22bc5cff9e8fcc56e1336c51e2276fb0",
+      "build_profile": "official-release-v0.3.1-linux-arm64-gnu",
+      "manifest_sha256": "e2bc0f0118911fbf69ebb6927860a40aae44cdb2c4a89795a0283ddf231466d4"
+    },
+    "checks": {
+      "native-and-scanned-routing": true,
+      "qualification-extracted-content": true,
+      "real-detector-span-control": true,
+      "permissioned-semantic-top1": true,
+      "protected-text-and-relevance": true,
+      "protected-embedding-model-boundary": true,
+      "protected-fulltext": true,
+      "committed-artifacts-survive-restart": true,
+      "held-update-converges-and-delete-persists": true,
+      "permission-restriction": true,
+      "migration-new-space-vectors": true,
+      "migration-old-space-still-consistent": true,
+      "rollback-new-a-generation": true,
+      "scaled-ingest-complete-counts": true,
+      "backfill-complete-counts": true,
+      "fixed-load-protected-output": true,
+      "backfill-completed": true
+    },
+    "phases": [
+      {
+        "name": "serving-only",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 160.1876664999935,
+            "p95": 174.90033335000135
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        }
+      },
+      {
+        "name": "serving-with-backfill",
+        "summary": {
+          "arrivals": 120,
+          "errors": 0,
+          "unavailable": 0,
+          "email_like_outputs": 0,
+          "unauthorized": 0,
+          "relevant_top1": 120,
+          "latency_ms": {
+            "p50": 164.1118335000158,
+            "p95": 378.62800210000387
+          },
+          "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+        },
+        "completed_target_documents": 1024,
+        "window_and_completion_seconds": 59.76801504100004,
+        "backfill_completion_seconds": 12.693789875000022,
+        "offered_qps": 2.0,
+        "window_seconds": 60.0,
+        "model_placement": "isolated shared remote service in both architectures; equal service caps"
+      }
+    ],
+    "not_run": [
+      "natural document corpus generalization",
+      "on-disk privacy audit",
+      "co-located inference comparison",
+      "exact response-before-commit internal failpoint"
+    ]
+  }
+]

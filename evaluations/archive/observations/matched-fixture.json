@@ -1,0 +1,1092 @@
+[
+  {
+    "engine": "antfly",
+    "scope": {
+      "source": "authored matched vectors",
+      "chunks": 3
+    },
+    "k": 1,
+    "depth": 5,
+    "quality": {
+      "a-initial-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      }
+    }
+  },
+  {
+    "engine": "lance",
+    "scope": {
+      "source": "authored matched vectors",
+      "chunks": 3
+    },
+    "k": 1,
+    "depth": 5,
+    "quality": {
+      "a-initial-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      }
+    }
+  },
+  {
+    "engine": "opensearch",
+    "scope": {
+      "source": "authored matched vectors",
+      "chunks": 3
+    },
+    "k": 1,
+    "depth": 5,
+    "quality": {
+      "a-initial-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      }
+    }
+  },
+  {
+    "engine": "postgres",
+    "scope": {
+      "source": "authored matched vectors",
+      "chunks": 3
+    },
+    "k": 1,
+    "depth": 5,
+    "quality": {
+      "a-initial-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      }
+    }
+  },
+  {
+    "engine": "vespa",
+    "scope": {
+      "source": "authored matched vectors",
+      "chunks": 3
+    },
+    "k": 1,
+    "depth": 5,
+    "quality": {
+      "a-initial-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-initial-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-initial": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "a-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-lexical": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-dense": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      },
+      "b-after-schema-change-hybrid": {
+        "k": 1,
+        "queries": 2,
+        "recall": 1.0,
+        "complete": 1.0,
+        "ineligible": 0,
+        "per_query": {
+          "lamps-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          },
+          "rope-after-schema-change": {
+            "found": 1,
+            "required": 1,
+            "recall": 1.0,
+            "all": true,
+            "ineligible": 0
+          }
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,234 @@
+{
+  "variants": 408,
+  "judgments_sha256": "5002d61477bce580518a9725802f1e7abd7e8ee0a984f54d6a8d7affe209e2a2",
+  "subjects": {
+    "antfly": {
+      "hybrid": {
+        "k": 20,
+        "queries": 408,
+        "recall": 0.22761243386243388,
+        "complete": 0.13480392156862744,
+        "ineligible": 0
+      },
+      "empty": {
+        "lexical": 0,
+        "dense": 0,
+        "hybrid": 0
+      },
+      "first_probe_page_counts": {
+        "lexical": 20,
+        "dense": 20
+      },
+      "both_nonempty": 408,
+      "receipt_sha256": "42a585b075e7924bc6fafed22514f74c6edc2aa571f4c69b2cbba38ac6e23e39",
+      "build_seconds": {
+        "total": 5859.2,
+        "model_calls": 5386.455,
+        "outside_model_calls": 472.745,
+        "after_last_write": 1.103
+      },
+      "traffic": {
+        "baseline_traffic": {
+          "arrivals": 408,
+          "failures": 0,
+          "p95_ms": {
+            "scheduled_to_done": 466.21,
+            "dispatched_to_done": 358.88,
+            "dispatch_delay": 148.03,
+            "lexical": 297.06,
+            "dense": 63.17
+          }
+        },
+        "traffic": {
+          "arrivals": 11719,
+          "failures": 0,
+          "p95_ms": {
+            "scheduled_to_done": 454.77,
+            "dispatched_to_done": 374.31,
+            "dispatch_delay": 146.05,
+            "lexical": 310.87,
+            "dense": 67.47
+          }
+        }
+      }
+    },
+    "lance": {
+      "hybrid": {
+        "k": 20,
+        "queries": 408,
+        "recall": 0.2188015483971366,
+        "complete": 0.13725490196078433,
+        "ineligible": 0
+      },
+      "empty": {
+        "lexical": 0,
+        "dense": 0,
+        "hybrid": 0
+      },
+      "first_probe_page_counts": {
+        "lexical": 20,
+        "dense": 20
+      },
+      "both_nonempty": 408,
+      "receipt_sha256": "76fe079875723681595344f10acae35391acf55a37d5acb07f214d6585ddbea8",
+      "build_seconds": {
+        "total": 5653.704,
+        "model_calls": 5518.073,
+        "outside_model_calls": 135.63,
+        "after_last_write": 10.431
+      },
+      "traffic": {
+        "baseline_traffic": {
+          "arrivals": 408,
+          "failures": 0,
+          "p95_ms": {
+            "scheduled_to_done": 814.54,
+            "dispatched_to_done": 695.46,
+            "dispatch_delay": 150.11,
+            "lexical": 647.99,
+            "dense": 54.09
+          }
+        },
+        "traffic": {
+          "arrivals": 11308,
+          "failures": 0,
+          "p95_ms": {
+            "scheduled_to_done": 824.5,
+            "dispatched_to_done": 717.7,
+            "dispatch_delay": 150.1,
+            "lexical": 667.16,
+            "dense": 56.74
+          }
+        }
+      }
+    },
+    "postgres": {
+      "hybrid": {
+        "k": 20,
+        "queries": 408,
+        "recall": 0.11980236539060068,
+        "complete": 0.06372549019607843,
+        "ineligible": 0
+      },
+      "empty": {
+        "lexical": 396,
+        "dense": 0,
+        "hybrid": 0
+      },
+      "first_probe_page_counts": {
+        "lexical": 0,
+        "dense": 20
+      },
+      "both_nonempty": 12
+    },
+    "opensearch": {
+      "hybrid": {
+        "k": 20,
+        "queries": 408,
+        "recall": 0.20367160753190164,
+        "complete": 0.14705882352941177,
+        "ineligible": 0
+      },
+      "empty": {
+        "lexical": 0,
+        "dense": 0,
+        "hybrid": 0
+      },
+      "first_probe_page_counts": {
+        "lexical": 20,
+        "dense": 20
+      },
+      "both_nonempty": 408,
+      "receipt_sha256": "638e427c1f48d606011c8b245a31c2619c9a596957d150b234ea81ef9fd12a10",
+      "build_seconds": {
+        "total": 5581.328,
+        "model_calls": 5312.195,
+        "outside_model_calls": 269.133,
+        "after_last_write": 0.277
+      },
+      "traffic": {
+        "baseline_traffic": {
+          "arrivals": 408,
+          "failures": 0,
+          "p95_ms": {
+            "scheduled_to_done": 191.66,
+            "dispatched_to_done": 47.5,
+            "dispatch_delay": 149.13,
+            "lexical": 34.33,
+            "dense": 14.91
+          }
+        },
+        "traffic": {
+          "arrivals": 11163,
+          "failures": 0,
+          "p95_ms": {
+            "scheduled_to_done": 159.7,
+            "dispatched_to_done": 15.37,
+            "dispatch_delay": 146.9,
+            "lexical": 9.46,
+            "dense": 6.51
+          }
+        }
+      }
+    },
+    "vespa": {
+      "hybrid": {
+        "k": 20,
+        "queries": 408,
+        "recall": 0.1542882430750078,
+        "complete": 0.09313725490196079,
+        "ineligible": 0
+      },
+      "empty": {
+        "lexical": 0,
+        "dense": 20,
+        "hybrid": 0
+      },
+      "first_probe_page_counts": {
+        "lexical": 20,
+        "dense": 20
+      },
+      "both_nonempty": 388
+    }
+  },
+  "common_two_channel_queries": 12,
+  "first_common_ordinal_1_based": 284,
+  "paired_hybrid_recall_antfly_minus_peer": {
+    "lance": {
+      "original_questions": 90,
+      "mean_within_question_recall_difference": 0.012212669018224574,
+      "paired_bootstrap_95": [
+        -0.009711934156378601,
+        0.03819444444444444
+      ],
+      "seed": 1701
+    },
+    "postgres": {
+      "original_questions": 90,
+      "mean_within_question_recall_difference": 0.11613242210464433,
+      "paired_bootstrap_95": [
+        0.062175191064079954,
+        0.17717592592592593
+      ],
+      "seed": 1701
+    },
+    "opensearch": {
+      "original_questions": 90,
+      "mean_within_question_recall_difference": 0.03848985890652557,
+      "paired_bootstrap_95": [
+        0.005687830687830688,
+        0.07826499118165785
+      ],
+      "seed": 1701
+    },
+    "vespa": {
+      "original_questions": 90,
+      "mean_within_question_recall_difference": 0.08469062316284538,
+      "paired_bootstrap_95": [
+        0.042234714873603765,
+        0.1350404174015285
+      ],
+      "seed": 1701
+    }
+  }
+}

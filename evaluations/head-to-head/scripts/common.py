@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import io
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -32,29 +33,67 @@ def request(url, body=None, *, method=None, headers=None, timeout=180):
         ) from exc
 
 
-def extract_pdf(raw, models):
+def extract_page(page, number, models, *, reader, costs=None, ocr_token_limits=None):
+    textpage = page.get_textpage()
+    text = textpage.get_text_range()
+    textpage.close()
+    mode = "native"
+    if len("".join(text.split())) < 50:
+        image = page.render(scale=150 / 72).to_pil()
+        stream = io.BytesIO()
+        image.save(stream, "PNG")
+        uri = "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
+        body = {"model": reader, "images": [{"url": uri}]}
+        for budget in ocr_token_limits or (None,):
+            if budget is not None:
+                body["max_tokens"] = budget
+            start = time.monotonic()
+            try:
+                output = request(
+                    models + "/ai/v1/read",
+                    body,
+                    timeout=900 if ocr_token_limits else 180,
+                )
+                break
+            except OSError as exc:
+                cause = exc.__cause__
+                if (
+                    ocr_token_limits is None
+                    or getattr(cause, "code", None) != 400
+                    or '"OUTPUT_TRUNCATED"' not in str(exc)
+                ):
+                    raise
+                if costs is not None:
+                    costs["ocr_truncated_calls"] += 1
+            finally:
+                if costs is not None:
+                    costs["ocr_calls"] += 1
+                    costs["ocr_wall_ms"] += round((time.monotonic() - start) * 1000)
+                    costs["ocr_submitted_pixels"] += image.width * image.height
+        else:
+            return {"page": number, "body": text.strip(), "extraction": "ocr_truncated"}
+        if costs is not None:
+            usage = output.get("usage") or {}
+            for field in (
+                "prompt_tokens",
+                "completion_tokens",
+                "unmeasured_tokens",
+            ):
+                if field in usage:
+                    costs["ocr_" + field] += usage[field]
+                    costs["ocr_" + field + "_reported_calls"] += 1
+        text = output["data"][0]["text"]
+        mode = "ocr"
+    return {"page": number, "body": text.strip(), "extraction": mode}
+
+
+def extract_pdf(raw, models, *, reader=READER, costs=None):
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(raw)
     pages = []
     for number, page in enumerate(pdf):
-        textpage = page.get_textpage()
-        text = textpage.get_text_range()
-        textpage.close()
-        mode = "native"
-        if len("".join(text.split())) < 50:
-            image = page.render(scale=150 / 72).to_pil()
-            stream = io.BytesIO()
-            image.save(stream, "PNG")
-            uri = (
-                "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
-            )
-            output = request(
-                models + "/ai/v1/read", {"model": READER, "images": [{"url": uri}]}
-            )
-            text = output["data"][0]["text"]
-            mode = "ocr"
-        pages.append({"page": number + 1, "body": text.strip(), "extraction": mode})
+        pages.append(extract_page(page, number + 1, models, reader=reader, costs=costs))
         page.close()
     pdf.close()
     return pages

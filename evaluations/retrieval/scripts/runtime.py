@@ -146,7 +146,13 @@ def get_client_image():
 class Owned:
     def __init__(self, output):
         if CANDIDATE:
-            verify_image(ANTFLY_IMAGE, CANDIDATE["commit"], ANTFLY_SHA, docker)
+            verify_image(
+                ANTFLY_IMAGE, CANDIDATE["commit"], ANTFLY_SHA, docker,
+                allow_unlabeled_release=bool(re.fullmatch(
+                    r"official-release-v[0-9]+\.[0-9]+\.[0-9]+-linux-arm64-gnu",
+                    CANDIDATE["build_profile"],
+                )),
+            )
         self.output = Path(output)
         self.prefix = "paper-cmp-" + uuid.uuid4().hex[:10]
         self.network = self.prefix

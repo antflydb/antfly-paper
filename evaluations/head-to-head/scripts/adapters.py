@@ -20,7 +20,8 @@ def wait(predicate, seconds=180):
 
 
 class Antfly:
-    def __init__(self, url, password):
+    def __init__(self, url, password, *, model_url="http://models:8090"):
+        self.model_url = model_url
         self.url = url
         self.password = password
         self.headers = {
@@ -72,7 +73,7 @@ class Antfly:
                 "embedder": {
                     "provider": "antfly",
                     "model": model,
-                    "api_url": "http://models:8090",
+                    "api_url": self.model_url,
                 },
             },
         )
@@ -108,7 +109,7 @@ class Antfly:
                         "provider": "antfly",
                         "model": DETECTOR,
                         "schema_version": 2,
-                        "api_url": "http://models:8090",
+                        "api_url": self.model_url,
                     },
                 },
             },

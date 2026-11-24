@@ -1,0 +1,183 @@
+{
+  "release": "v0.3.1",
+  "rows": 616832,
+  "candidate_depth": 100,
+  "subject": "local restored A, external embeddings",
+  "query": "86:archive:after-schema-change:1",
+  "serial_trials_per_arm": 5,
+  "serial": {
+    "original": {
+      "lexical": {
+        "candidate_window": 1600,
+        "candidate_iterations": 5,
+        "execute_us": 2217774,
+        "positive_filter": [
+          "false"
+        ],
+        "total_us": 2308521,
+        "client_ms": 2358.35
+      },
+      "dense": {
+        "raw_hits": 3200,
+        "native_filter_candidates": 0,
+        "route_reason": [
+          "no_native_filter"
+        ],
+        "hbc_us": 52206,
+        "postprocess_us": 41626,
+        "total_us": 107243,
+        "client_ms": 160.08
+      }
+    },
+    "numeric": {
+      "lexical": {
+        "candidate_window": 1600,
+        "candidate_iterations": 5,
+        "execute_us": 3462904,
+        "positive_filter": [
+          "false"
+        ],
+        "total_us": 3491827,
+        "client_ms": 3540.82
+      },
+      "dense": {
+        "raw_hits": 3200,
+        "native_filter_candidates": 0,
+        "route_reason": [
+          "no_native_filter"
+        ],
+        "hbc_us": 46701,
+        "postprocess_us": 37079,
+        "total_us": 84923,
+        "client_ms": 134.76
+      }
+    },
+    "nullable_index_sort": {
+      "lexical": {
+        "candidate_window": 100,
+        "candidate_iterations": 1,
+        "execute_us": 297659,
+        "positive_filter": [
+          "true"
+        ],
+        "total_us": 298469,
+        "client_ms": 353.08
+      },
+      "dense": {
+        "raw_hits": 100,
+        "native_filter_candidates": 59273,
+        "route_reason": [
+          "exact_measured_work_budget_exceeded"
+        ],
+        "hbc_us": 7504,
+        "postprocess_us": 184,
+        "total_us": 8658,
+        "client_ms": 67.71
+      }
+    }
+  },
+  "all_queries": {
+    "lexical": {
+      "variants": 24,
+      "same_ranked_ids": 0,
+      "same_id_set": 4,
+      "median_ids_in_common": 99.0,
+      "min_ids_in_common": 96,
+      "min_hits_returned": 100,
+      "max_hits_returned": 100
+    },
+    "dense": {
+      "variants": 24,
+      "same_ranked_ids": 0,
+      "same_id_set": 0,
+      "median_ids_in_common": 79.0,
+      "min_ids_in_common": 62,
+      "min_hits_returned": 100,
+      "max_hits_returned": 100
+    }
+  },
+  "ordered_2qps": {
+    "original": {
+      "scheduled": 72,
+      "issued": 60,
+      "skipped": 12,
+      "eight_client_slots": true,
+      "lexical_client_ms": 3894.68,
+      "dense_client_ms": 2270.75
+    },
+    "nullable_index_sort": {
+      "scheduled": 72,
+      "issued": 72,
+      "skipped": 0,
+      "eight_client_slots": true,
+      "lexical_client_ms": 354.21,
+      "dense_client_ms": 67.79
+    }
+  },
+  "source_rows_verified": 616832,
+  "oracle": {
+    "original": {
+      "returned_rows_checked": 5800,
+      "ineligible": 0,
+      "page_recall_at_20": {
+        "lexical": 0.184722,
+        "dense": 0.08588,
+        "hybrid": 0.21713
+      },
+      "mean_filtered_exact_dense_recall_at_100": 0.79625
+    },
+    "numeric": {
+      "returned_rows_checked": 5800,
+      "ineligible": 0,
+      "page_recall_at_20": {
+        "lexical": 0.184722,
+        "dense": 0.08588,
+        "hybrid": 0.21713
+      },
+      "mean_filtered_exact_dense_recall_at_100": 0.79625
+    },
+    "nullable_index_sort": {
+      "returned_rows_checked": 20200,
+      "ineligible": 0,
+      "page_recall_at_20": {
+        "lexical": 0.184722,
+        "dense": 0.066204,
+        "hybrid": 0.18588
+      },
+      "mean_filtered_exact_dense_recall_at_100": 0.987917
+    }
+  },
+  "dense_oracle": "Exhaustive cosine against all stored vectors in each eligible tenant/retention population. Equal-cutoff scores within 1e-7 receive credit. Macro mean across 24 fixed variants.",
+  "eligibility": "Validate each returned row ID against a separate primary-key scan and frozen tenant/filter judgments. Synthetic qualification checks the entire eligible set.",
+  "conditions": {
+    "original": "Default schema from completed corpus run, inclusive numeric range.",
+    "numeric": "Explicit numeric field with doc values, body text and tenant keyword. Its serial samples can overlap the other clone rebuilding; use this control for plan and membership.",
+    "nullable_index_sort": "Archive adapter evolved schema, including numeric retention, ordered nulls, and physical sort by retention_years and _id.",
+    "timing": "Server total_us from the native benchmark trace. Five serial repetitions per channel on a private restored snapshot. Ordered replays preserve the original 24 variants for 3 passes at 2 QPS, eight slots, no concurrent migration. Client stage times include dispatch and transport after invocation. These diagnostic samples are separate from the Wolfspider migration campaign."
+  },
+  "counterbalanced_serial": {
+    "rounds": 6,
+    "warmup_rounds_excluded": 2,
+    "alternating_order": true,
+    "original": {
+      "lexical": {
+        "median_client_ms": 2186.45,
+        "median_engine_ms": 2137.63
+      },
+      "dense": {
+        "median_client_ms": 131.06,
+        "median_engine_ms": 81.24
+      }
+    },
+    "sorted": {
+      "lexical": {
+        "median_client_ms": 357.2,
+        "median_engine_ms": 302.53
+      },
+      "dense": {
+        "median_client_ms": 67.95,
+        "median_engine_ms": 8.5
+      }
+    }
+  }
+}
