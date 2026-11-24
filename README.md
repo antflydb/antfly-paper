@@ -7,7 +7,7 @@ the public archive artifact includes controlled release measurements and the cor
 ## Paper
 
 [`paper/`](paper) holds the LaTeX source of "Antfly: An Inference-Native
-Polymorphic Database". Build it with `make -C paper pdf`.
+Polymorphic Database". Read the [paper PDF](paper/antfly.pdf) and the [paired native hybrid latency results](evaluations/archive/observations/officeqa-hybrid-1814.md). Build it with `make -C paper pdf`.
 
 ## Evaluations
 

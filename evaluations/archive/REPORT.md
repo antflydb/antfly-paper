@@ -30,6 +30,8 @@ Each point aggregates one minute of the build. The last bin ends at readiness an
 
 In a separate release-to-release check with scoped API keys, all 408 evolved hybrid queries completed while 22,528 frozen B rows were indexed. Client p95 fell from 383 ms on v0.3.2 to 240 ms on ReleaseFast commit `7f6031aebd`. The ordered physical-page results matched for every query. [Paired protocol and results](COMPARABILITY.md#releasefast-backport-of-1756)
 
+In a separate uninstrumented comparison, #1814 lowered pooled serving-only HTTP p95 from 120.84 to 93.94 ms on the same 616,832-row snapshot. During backfill to a second table, it fell from 101.74 to 83.76 ms. All 3,264 requests completed with identical results. All write batches completed, with more write retries on the merged build. The packaged v0.3.3 source includes #1814; the timing subjects were the merge and its immediate parent. [Protocol and per-run results](observations/officeqa-hybrid-1814.md) · [Aggregate receipt](observations/officeqa-hybrid-1814.json)
+
 ## Which evidence pages came back?
 
 The corpus has 1,435 PDFs, 118,524 physical pages, 90 original questions and 823 distinct cited question–page pairs. Each schema phase has 408 eligible tenant/filter variants. The client requests 100 candidates per channel and returns up to 20 distinct physical pages. Recall is the mean fraction of each variant’s eligible cited pages retrieved. “All” is the fraction of variants for which every eligible cited page was returned. [Corpus verification](observations/corpus-verification.json)
@@ -68,6 +70,8 @@ For the 90 original questions, the reader can search all public pages. Generatio
 In a separate v0.3.1 check, one standalone Antfly instance took three PDF URLs and two enrichment definitions. Native extraction handled both born-digital pages, LightOnOCR-3-0.8B handled the scanned page, and the native chunker produced four searchable chunks in total. The matched application worker reported 2,094 prompt tokens and 19 completion tokens for the scan. These token counts belong to its inference API request. [Configuration](lighton-enrichments.json) · [Fixture receipt](observations/lighton-ingestion-fixture.json)
 
 ### Page-image to text-chunk migration
+
+The v0.3.3 replay uses the packaged Darwin arm64 binary from source commit `2d456b7cecc05906b96038fa52859f03472967ad`. A synthetic pagination check returned all 208 passages from one long page, each with a 768-dimensional EmbeddingGemma 2 vector. The full-corpus replay is pending. [Binary checksums and protocol](README.md#publisher-replay-and-measured-raw-pdf-sample)
 
 The November 22 protocol uses publisher-text replay for the full 118,524-page representation migration. The versioned page catalog contains 115,458 mapped pages and 3,066 explicit missing-text entries. Generation A retains every physical page and the original citation judgments include missing-text pages. The full trial times retrieval of remote PDFs, indexing, serving during replacement, and cutover using native PDF text where available and publisher replay on OCR fallback for generation B. Its timing includes fallback page rendering, upload and replay lookup. In the v0.3.2 qualification a three-page PDF was served to two tenant-visible source rows. Antfly issued two mapped and two missing-page replay requests, recorded zero OCR failures, and returned physical page 1 for a search term supplied only by the replay provider. [Qualification receipt](observations/publisher-replay-v032.json) [Reproduction](README.md#publisher-replay-and-measured-raw-pdf-sample)
 

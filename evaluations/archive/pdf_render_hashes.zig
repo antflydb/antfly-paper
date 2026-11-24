@@ -1,4 +1,4 @@
-// Build as the lib-pdf-bench entry point in a clean Antfly v0.3.2 checkout.
+// Build as the lib-pdf-bench entry point in a clean Antfly v0.3.3 checkout.
 const std = @import("std");
 const pdf = @import("antfly_pdf");
 

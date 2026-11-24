@@ -2,6 +2,7 @@
 
 import argparse
 import fcntl
+import json
 import subprocess
 import sys
 import time
@@ -9,8 +10,12 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from urllib.request import urlopen
 
-from dataset import sha256_file
-from pdf_archive_campaign import port, stop
+from pdf_archive_campaign import (
+    archive_binary_digest,
+    port,
+    stop,
+    verify_representation_manifest,
+)
 
 HERE = Path(__file__).resolve().parent
 
@@ -38,12 +43,15 @@ def ready(proc, predicate):
 
 
 def run(a):
+    digest = archive_binary_digest(a.binary)
     native = a.stage == "native"
     plan = a.out / ("native-plan" if native else "inputs")
     workload = a.sample_workload or a.workload
     replay = [] if a.sample_workload else ["--replay-catalog", a.catalog]
     py = sys.executable
     prepared = plan / ("native-plan.json" if native else "manifest.json")
+    if prepared.exists():
+        verify_representation_manifest(json.loads(prepared.read_text()), digest)
     with ExitStack() as stack:
         url = None
         if not prepared.exists() or a.stage == "matched":
@@ -134,7 +142,7 @@ def run(a):
                         "--models",
                         url,
                         "--subject",
-                        sha256_file(a.binary),
+                        digest,
                         "--out",
                         plan,
                         *options,

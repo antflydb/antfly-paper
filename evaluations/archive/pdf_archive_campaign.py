@@ -24,6 +24,22 @@ SCRIPTS = Path(__file__).resolve().parent
 ENGINES = ("antfly", "lance", "postgres", "opensearch", "vespa", "antfly-native")
 
 
+def archive_binary_digest(binary):
+    version = subprocess.check_output(
+        [binary, "--version"], text=True, stderr=subprocess.STDOUT
+    )
+    if not version.startswith("antfly 0.3.3 "):
+        raise ValueError("expected the pinned v0.3.3 runtime")
+    return sha256_file(binary)
+
+
+def verify_representation_manifest(manifest, digest):
+    if manifest["representations"] != "pdf-images-to-passages-v2":
+        raise ValueError("use fresh v0.3.3 inputs for the model-aware passage workload")
+    if digest != manifest["subject"]:
+        raise ValueError("binary differs from preparation")
+
+
 def port():
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -372,12 +388,7 @@ def main():
         manifest.get("reader") == "officeqa-publisher-replay-v1"
     ):
         raise ValueError("native reader must match the declared cohort")
-    if sha256_file(args.binary) != manifest["subject"]:
-        raise ValueError("binary differs from preparation")
-    if not subprocess.check_output(
-        [args.binary, "--version"], text=True, stderr=subprocess.STDOUT
-    ).startswith("antfly 0.3.2 "):
-        raise ValueError("expected the pinned v0.3.2 runtime")
+    verify_representation_manifest(manifest, archive_binary_digest(args.binary))
     if (
         sha256_file(args.data / "dataset-manifest.json")
         != manifest["acquisition_sha256"]

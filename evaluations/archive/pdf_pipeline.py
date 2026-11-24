@@ -9,7 +9,7 @@ from contextlib import closing
 import publisher_replay
 from corpus import fetch_object
 from evidence import page_id
-from pdf_vector_compare import READER, embed_batch
+from pdf_vector_compare import READER, embed_batch, passage_vectors
 
 
 def visual(page, models, identity, costs):
@@ -59,22 +59,13 @@ def extract(page, number, models, limits, catalog, sha, costs, application_reade
     return result
 
 
-def passages(row, body):
-    words = body.split()
-    for offset in range(0, len(words), 160):
+def passages(row, body, models, identity):
+    for ordinal, (text, vector) in enumerate(passage_vectors(models, body, identity)):
         yield row | {
-            "id": row["page"] + "#chunk=" + str(offset // 160),
-            "body": " ".join(words[offset : offset + 160]),
+            "id": row["page"] + "#chunk=" + str(ordinal),
+            "body": text,
+            "b": vector,
         }
-
-
-def embedded(rows, models, identity):
-    if rows:
-        vectors, _ = embed_batch(
-            models, [r["body"] for r in rows], "RETRIEVAL_DOCUMENT", identity
-        )
-        for r, v in zip(rows, vectors, strict=True):
-            yield r | {"b": v}
 
 
 def live_rows(
@@ -109,7 +100,6 @@ def live_rows(
                 raise ValueError("expected content-addressed PDF")
             raw = fetch_object(ref["url"], sha, ref["etag"])
             costs["bytes_fetched"] += len(raw)
-            pending = []
             with closing(pdfium.PdfDocument(raw)) as pdf:
                 for n in range(1, len(pdf) + 1):
                     with closing(pdf[n - 1]) as page:
@@ -135,14 +125,9 @@ def live_rows(
                             application_reader,
                         )
                         costs[result["extraction"] + "_pages"] += 1
-                        for r in passages(row, result["body"]):
-                            pending.append(r)
-                            if len(pending) == 16:
-                                yield from embedded(
-                                    pending, models, manifest["model_identity"]
-                                )
-                                pending.clear()
-                yield from embedded(pending, models, manifest["model_identity"])
+                        yield from passages(
+                            row, result["body"], models, manifest["model_identity"]
+                        )
     finally:
         if catalog:
             catalog.close()

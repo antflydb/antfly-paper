@@ -4,6 +4,7 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import subprocess
@@ -24,6 +25,12 @@ def connect(path):
 
 
 def build(args):
+    if args.renderer and not (
+        args.renderer.is_file() and os.access(args.renderer, os.X_OK)
+    ):
+        raise ValueError(
+            "install the raster helper with execute permission (install -m 755)"
+        )
     inventory = dataset.verify_acquisition(args.data)
     acq = dataset.sha256_file(args.data / "dataset-manifest.json")
     db = sqlite3.connect(args.catalog)

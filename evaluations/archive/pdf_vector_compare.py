@@ -38,6 +38,74 @@ def embed_batch(endpoint, inputs, task, identity=None):
     return vectors, observed
 
 
+CHUNK_POLICY = {"target_tokens": 160, "overlap_tokens": 0}
+
+
+def passage_vectors(endpoint, body, identity):
+    """Yield contiguous source-ordered passages embedded by the boundary model."""
+    if not body.strip():
+        return
+    request = {
+        "input": body,
+        "embedding": {
+            "model": MODEL,
+            "model_identity": identity,
+            "task_type": "RETRIEVAL_DOCUMENT",
+            "dimensions": 768,
+        },
+        "policy": CHUNK_POLICY,
+        "config": {"max_chunks": 32},
+        "include_content": True,
+    }
+    start = 0
+    plan = None
+    seen = set()
+    while True:
+        result = call(endpoint.rstrip("/") + "/ai/v1/chunk", "POST", request)
+        items = result["data"]
+        end = start + len(items)
+        if (
+            result["model_identity"] != identity
+            or result["task_type"] != "RETRIEVAL_DOCUMENT"
+            or result["dimensions"] != 768
+            or result["gaps"]
+            or result.get("degraded")
+            or result["start_ordinal"] != start
+            or result["covered_through_ordinal"] != end
+            or not result["plan_id"]
+            or (plan is not None and result["plan_id"] != plan)
+        ):
+            raise ValueError(
+                "inconsistent passage plan, embedding identity or coverage"
+            )
+        plan = result["plan_id"]
+        for ordinal, item in enumerate(items, start):
+            vector = item["embedding"]
+            if (
+                item["descriptor"]["ordinal"] != ordinal
+                or not item["text"]
+                or not 0 < item["descriptor"]["input_tokens"] <= 8192
+                or len(vector) != 768
+                or not all(math.isfinite(x) for x in vector)
+            ):
+                raise ValueError("invalid model-aware passage")
+            yield item["text"], vector
+        if result["source_complete"] and result["status"] == "complete" and end > 0:
+            return
+        cursor = result.get("next_continuation")
+        if (
+            result["source_complete"]
+            or result["status"] != "partial"
+            or not items
+            or not cursor
+            or cursor in seen
+        ):
+            raise ValueError("incomplete passage response")
+        seen.add(cursor)
+        request["continuation"] = cursor
+        start = end
+
+
 def build_inputs(endpoint, out):
     from common import extract_pdf
 
@@ -76,15 +144,15 @@ def build_inputs(endpoint, out):
             generation["a"].append(row(1, 0, "", vec))
         pages = extract_pdf(source.read_bytes(), endpoint, reader=READER, costs=costs)
         for page in pages:
-            words = page["body"].split()
-            chunks = [" ".join(words[i : i + 160]) for i in range(0, len(words), 160)]
-            if not chunks:
-                raise ValueError(f"empty fixture page: {name} {version} {page['page']}")
-            vectors = embed(chunks, "RETRIEVAL_DOCUMENT")
-            for i, (chunk, v) in enumerate(zip(chunks, vectors, strict=True)):
+            if not page["body"].strip():
+                raise ValueError("empty fixture page")
+            for i, (chunk, v) in enumerate(
+                passage_vectors(endpoint, page["body"], identity)
+            ):
                 generation["b"].append(row(page["page"], i, chunk, v))
         return generation
 
+    queries = embed([QUESTION, PAGE_TWO], "RETRIEVAL_QUERY")
     initial = {
         name: rows(name, 1, directory / f"v1/{name}.pdf", directory / f"v1/{name}.png")
         for name in NAMES
@@ -93,7 +161,6 @@ def build_inputs(endpoint, out):
         "ledger", 2, directory / "v2/ledger.pdf", directory / "v2/ledger.png"
     )
     extra = rows("two", 1, directory / "two-pages.pdf", None)
-    queries = embed([QUESTION, PAGE_TWO], "RETRIEVAL_QUERY")
     payload = {
         "model": MODEL,
         "identity": identity,
@@ -105,7 +172,7 @@ def build_inputs(endpoint, out):
         "preparation": {
             "application_render_seconds_all_versions": render_seconds,
             "ocr": dict(costs),
-            "chunker": "160 words per physical page, zero overlap",
+            "chunker": {"model": MODEL, **CHUNK_POLICY},
             "image_dpi": 144,
         },
     }

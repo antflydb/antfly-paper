@@ -71,19 +71,41 @@ def backfill(engine, batches, start, interval):
     return timings, retries, None
 
 
-def traffic(engine, queries, eligible, start):
+def measure(engine, q, eligible, native, begin):
+    if native:
+        result = engine.query(q, q["a"], "native_hybrid", 100)
+        elapsed = time.monotonic() - begin
+        hits = result["hits"]["hits"]
+        pages = [h["_source"]["page"] for h in hits]
+        if any(page.rsplit("#page=", 1)[0] not in eligible for page in pages):
+            raise ValueError("ineligible candidate")
+
+        def digest(values):
+            return hashlib.sha256(
+                json.dumps(values, separators=(",", ":")).encode()
+            ).hexdigest()
+
+        return {
+            "http_seconds": elapsed,
+            "hits": len(hits),
+            "digest": digest(list(dict.fromkeys(pages))[:20]),
+            "ids_digest": digest([h["_id"] for h in hits]),
+            "score_digest": digest([h["_score"] for h in hits]),
+        }
+    stages = {}
+    pages = observations(engine, q, "a", "hybrid", 100, 20, eligible, stages)
+    return {
+        "channels": stages,
+        "digest": hashlib.sha256(json.dumps(pages).encode()).hexdigest(),
+    }
+
+
+def traffic(engine, queries, eligible, start, native=False):
     def read(q, due):
         begin = time.monotonic()
-        stages = {}
         row = dict(id=q["id"], scheduled=due - start, dispatch=begin - start)
         try:
-            pages = observations(
-                engine, q, "a", "hybrid", 100, 20, eligible[q["id"]], stages
-            )
-            row.update(
-                channels=stages,
-                digest=hashlib.sha256(json.dumps(pages).encode()).hexdigest(),
-            )
+            row.update(measure(engine, q, eligible[q["id"]], native, begin))
         except (OSError, RuntimeError, ValueError, KeyError) as exc:
             row["error"] = (
                 "ineligible"
@@ -113,24 +135,28 @@ def traffic(engine, queries, eligible, start):
     return sorted(rows, key=lambda r: r["scheduled"])
 
 
-def summarize(rows):
+def summarize(rows, native=False):
     def p95(values):
         return round(1000 * sorted(values)[math.ceil(0.95 * len(values)) - 1], 3)
 
     good = [r for r in rows if "digest" in r]
     errors = Counter(r["error"] for r in rows if "error" in r)
-    return {
+    stats = {
         "scheduled": len(rows),
         "completed": len(good),
         "missed": errors.get("concurrency_limit", 0),
         "errors": dict(errors),
         "ineligible": errors.get("ineligible", 0),
         "p95_ms": p95([r["latency"] for r in good]) if good else None,
-        "lexical_p95_ms": p95([r["channels"]["lexical"] for r in good])
-        if good
-        else None,
-        "dense_p95_ms": p95([r["channels"]["dense"] for r in good]) if good else None,
     }
+    if native:
+        stats["http_p95_ms"] = p95([r["http_seconds"] for r in good]) if good else None
+    else:
+        for channel in ("lexical", "dense"):
+            stats[channel + "_p95_ms"] = (
+                p95([r["channels"][channel] for r in good]) if good else None
+            )
+    return stats
 
 
 def run(args):
@@ -202,20 +228,29 @@ def run(args):
         a.text_index = a.full_text_index(sources[0])
         a.create_readers()
         a.readers = {t: a.api_key(user.split(":")[0]) for t, user in a.readers.items()}
-        deadline = time.monotonic() + 180
-        probe = queries[283]
-        while True:
-            try:
+
+        def warm(q, require_hits=False):
+            if args.native_hybrid:
+                row = measure(a, q, eligible[q["id"]], True, time.monotonic())
+                if require_hits and not row["hits"]:
+                    raise ValueError("empty native hybrid readiness probe")
+            else:
                 observations(
                     a,
-                    probe,
+                    q,
                     "a",
                     "hybrid",
                     100,
                     20,
-                    eligible[probe["id"]],
-                    require_hits=True,
+                    eligible[q["id"]],
+                    require_hits=require_hits,
                 )
+
+        deadline = time.monotonic() + 180
+        probe = queries[283]
+        while True:
+            try:
+                warm(probe, require_hits=True)
                 break
             except (RuntimeError, ValueError) as exc:
                 if time.monotonic() >= deadline:
@@ -225,20 +260,20 @@ def run(args):
                 time.sleep(1)
         counts = wait_for_indexed_rows(a, 616832, "restored A")
         for q in queries[:4]:
-            observations(a, q, "a", "hybrid", 100, 20, eligible[q["id"]])
+            warm(q)
         b = Antfly(url, "latencybackfillb", "write", access="api_key")
         b.create(384, evolved=True)
         time.sleep(
             30
         )  # Allow restored shard maintenance to settle before offering traffic.
         print("baseline", flush=True)
-        baseline = traffic(a, queries, eligible, time.monotonic())
+        baseline = traffic(a, queries, eligible, time.monotonic(), args.native_hybrid)
         publish(args.out / "baseline.json", baseline)
         print("backfill", flush=True)
         start = time.monotonic() + 0.1
         with ThreadPoolExecutor(max_workers=1) as pool:
             writer = pool.submit(backfill, b, batches, start, 1.2)
-            loaded = traffic(a, queries, eligible, start)
+            loaded = traffic(a, queries, eligible, start, args.native_hybrid)
             publish(args.out / "during.json", loaded)
             writes, retries, write_error = writer.result()
         b_counts = wait_for_indexed_rows(b, len(writes) * 128, "paced B")
@@ -255,8 +290,9 @@ def run(args):
                 nofile_soft=fds,
                 a_counts=counts,
                 b_counts=b_counts,
-                baseline=summarize(baseline),
-                during=summarize(loaded),
+                native_hybrid=args.native_hybrid,
+                baseline=summarize(baseline, args.native_hybrid),
+                during=summarize(loaded, args.native_hybrid),
                 write_batches=len(writes),
                 offered_write_batches=len(batches),
                 write_retries=retries,
@@ -297,6 +333,11 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     for name in ("corpus", "workload", "database", "binary", "out"):
         p.add_argument("--" + name, type=Path, required=True)
+    p.add_argument(
+        "--native-hybrid",
+        action="store_true",
+        help="issue one native lexical+vector request and record ordered ID, score and page digests",
+    )
     args = p.parse_args()
     args.out.mkdir(parents=True, exist_ok=False)
     run(args)

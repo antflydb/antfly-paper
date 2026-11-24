@@ -42,11 +42,14 @@ rules compose inside retrieval rather than through application-side joins.
 
 We describe the architecture, its consistency and failure semantics, and the
 costs of owning derived state while keeping inference compute disaggregated.
-In controlled release experiments, a query held across an index-alias switch
-kept its original encoder and index. In a small remote archive, Antfly and
-a PostgreSQL pipeline both preserved the surviving page citation after a
-correction and enforced a restriction on an intermediate graph node.
-PostgreSQL completed a separate 1,024-vector backfill in roughly half the time.
+During an index migration, a query held across the alias switch kept its
+original encoder and index. On OfficeQA, Antfly served all 11,719 scheduled
+queries against the old generation while its replacement grew to 616,832
+searchable rows. LanceDB also sustained continuous service with an
+application-managed cutover. Across five systems we identify where schema
+evolution, tenant filtering and publication are enforced. In a controlled
+remote archive, Antfly and PostgreSQL both preserved the surviving citation
+after a correction and enforced access on an intermediate graph node.
 \end{abstract}
 
 \maketitle
@@ -396,6 +399,11 @@ as an embedded single file, a replicated server or a sharded cluster.
 \section{Evaluation}
 \label{sec:eval}
 
+\paragraph{Migration contract.} An in-flight query must keep its encoder and
+index from the same generation. New queries must continue to see eligible
+records while the replacement builds, and the new generation must pass a
+readiness probe before cutover. We test pinning with a held query and measure
+continued service separately on a permissioned archive.
 \paragraph{Baselines.} Protocols and implementation status live in the
 artifact repository~\cite{antfly-paper-repo}; draft protocols are not completed
 measurements. The retrieval experiment compares PostgreSQL with pgvector
@@ -476,8 +484,12 @@ Vespa, and LanceDB. A synthetic tenant overlay assigns visibility and typed
 metadata independently of the answer keys. Tenants use different metadata
 fields, and both add a typed field after ingestion. The comparison records
 the mappings, indexes, policy enforcement, and application changes each system
-requires. PostgreSQL stores tenant-specific metadata in JSONB alongside shared
-typed columns.
+requires. Antfly indexes tenant fields and enforces a database row policy.
+PostgreSQL uses JSONB, expression indexes and row-level security.
+OpenSearch extends a typed mapping, Vespa deploys a schema with a new
+attribute, and LanceDB adds a column. In these three archive adapters the
+trusted application supplies the tenant filter on each search. The artifact
+separately exercises OpenSearch document-level security.
 
 For the matched retrieval comparison, all systems receive the same text,
 chunks, and embeddings. We compare lexical, dense, and hybrid retrieval and
@@ -507,20 +519,20 @@ was $+1.2$ percentage points (95\% bootstrap interval $[-1.0,+3.8]$).
 These single trials used a shared application-side BGE worker and a client
 cutover. The artifact reports per-channel recall and timing boundaries.
 
-A separate paired trial on the same host measured a filtered lexical scoring
-optimization. With scoped API keys, all 408 evolved hybrid queries completed
-while 22,528 frozen B rows were indexed. Client p95 fell from 383 ms on
-v0.3.2 to 240 ms on the optimized release-branch build. Every query returned
-the same ordered list of physical pages.
-
-Secondary experiments measure serving-only versus serving-with-backfill under
-fixed offered load, alongside an isolated-inference control with equal total
-resources and the same models. They report query tails, errors, queue growth
-and completed backfill work. Mixed-model memory and vector recomputation
-experiments include shared-runtime baselines, actual model/source storage and
-matched recall; separate services need not duplicate models unnecessarily. Reference implementations, counting
-rules and workloads are published with the paper; generated code is excluded
-from line counts.
+\paragraph{Hybrid read latency.} A physical LSM maintenance turn could
+invalidate a parallel lexical and vector search and force a serial retry.
+Change \#1814 aligned maintenance scheduling with compaction eligibility
+and preserved the read revision across physical maintenance. On Wolfspider,
+we compared the merge against its immediate parent using uninstrumented
+ReleaseFast builds. Each build served the same 408 tenant-filtered queries
+twice per phase on fresh copies of the 616,832-row snapshot, reversing build
+order for the second pair. Serving-only HTTP p95 fell from 120.84 to
+93.94\,ms (22.3\%). With 22,528 writes to a separate table, it fell from
+101.74 to 83.76\,ms (17.7\%). All 3,264 reads completed with identical
+ordered IDs, scores and top pages. Write retries varied across trials, so
+the serving-only pair gives the cleaner estimate. The artifact records the
+individual trials, write delays and exact commits. Antfly v0.3.3 includes
+the change; these timings belong to the two measured commits.
 
 %--------------------------------------------------------------------------
 \section{Future directions}
