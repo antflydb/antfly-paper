@@ -397,7 +397,7 @@ as an embedded single file, a replicated server or a sharded cluster.
 \label{sec:eval}
 
 \paragraph{From declarations to searchable pages.} The application submitted
-three PDF URLs to one Antfly v0.3.1 instance. Its first declaration selects
+three PDF URLs to one Antfly instance. Its first declaration selects
 document extraction with automatic OCR fallback and pins the LightOnOCR
 reader. The second names the first declaration's output, sets a 160-token
 chunk target with zero overlap, and requests a full-text index. The
@@ -408,7 +408,7 @@ directly, sent only the scanned ledger to OCR, and indexed four chunks
 across the three documents. The artifact includes the declarations, worker
 and per-document observations~\cite{antfly-paper-repo}.
 
-\paragraph{What the reader sees at cutover.} We held a v0.3.1 query open on
+\paragraph{What the reader sees at cutover.} We held an Antfly query open on
 generation A and moved the alias to B. The held query finished with A's
 encoder and index. A new query used B's pair. Deliberately pairing the
 wrong encoder with an index failed the independent vector check. The OfficeQA
@@ -432,7 +432,8 @@ The replay control changes the provider's answer on every call, commits one
 answer, disables the provider and restarts the database. It checks both the
 stored answer and the call count. Timing trials use pinned models and
 report the write acknowledgement level, searchable coverage, query
-availability and latency.
+availability and latency. We evaluated Antfly v0.3. The artifact records exact
+engine versions and build identifiers for the trials~\cite{antfly-paper-repo}.
 
 \begin{table}[t]
   \caption{Paired backfill trials. Each system added 1,024 vectors while
@@ -452,7 +453,7 @@ availability and latency.
 \end{table}
 
 \paragraph{Correction during backfill.}
-In a five-row v0.3.1 fixture we held real B
+In a five-row fixture we held real B
 embedding work, corrected a source and moved it to a different tenant.
 Both databases continued serving A to its authorized reader before the
 correction and excluded the source from its old tenant after acknowledgement.
@@ -529,8 +530,7 @@ order for the second pair. Serving-only HTTP p95 fell from 120.84 to
 101.74 to 83.76\,ms (17.7\%). All 3,264 reads completed with identical
 ordered IDs, scores and top pages. Write retries varied across trials, so
 the serving-only pair gives the cleaner estimate. The artifact records the
-individual trials, write delays and exact commits. Antfly v0.3.3 includes
-the change; these timings belong to the two measured commits.
+individual trials, write delays and exact commits.
 
 %--------------------------------------------------------------------------
 \section{Future directions}
