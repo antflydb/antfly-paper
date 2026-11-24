@@ -1,0 +1,19 @@
+{
+  "provenance": {
+    "dataset": {
+      "dataset_version": "v2",
+      "repo_id": "databricks/officeqa-pro-v2",
+      "revision": "65a2b315780417bc50d7bfe6e5bdb904e63fda65",
+      "benchmark_id": "office-qa-pro-v2",
+      "primary_metric": "exact"
+    },
+    "acquisition_sha256": "04af26f807d319887164b215d617c51c609c32867cac7c84851ff8f73c065f55",
+    "raw_pdfs": 1435,
+    "queries": 816
+  },
+  "physical_pages": 118524,
+  "questions": 90,
+  "distinct_question_page_pairs": 823,
+  "judgments_sha256": "5002d61477bce580518a9725802f1e7abd7e8ee0a984f54d6a8d7affe209e2a2",
+  "visual_citation_audit": "pending"
+}

@@ -1,0 +1,291 @@
+{
+  "protocol": "Local M4 Max, native macOS arm64. Paired serving-only trials, release first. Same restored A snapshot, row policy and scoped API key; two warmups and nine measured rounds per lexical arm. Each protected credential trial used a fresh 4096-row table.",
+  "trials": {
+    "v0.3.2": {
+      "binary_sha256": "92f425047f9760c1f70b7c85fd2eff2d56cb19ca3ee18a1264dfc5e78547e38d",
+      "lexical": {
+        "query_id": "86:archive:after-schema-change:1",
+        "words": 100,
+        "distinct_lowercase_words": 69,
+        "warmup_rounds_excluded": 2,
+        "measured_rounds": 9,
+        "cells": {
+          "full_100": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 313.019,
+            "engine_ms": 303.585,
+            "execute_ms": 302.791,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_20": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 311.434,
+            "engine_ms": 302.479,
+            "execute_ms": 302.11,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_1": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 307.806,
+            "engine_ms": 298.884,
+            "execute_ms": 298.655,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "first16": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 60.3,
+            "engine_ms": 51.141,
+            "execute_ms": 50.226,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "first50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 183.219,
+            "engine_ms": 173.707,
+            "execute_ms": 172.909,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "second50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 185.39,
+            "engine_ms": 176.104,
+            "execute_ms": 174.858,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "unique": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 314.514,
+            "engine_ms": 305.144,
+            "execute_ms": 304.364,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_1": {
+            "allowed": 1,
+            "rows": 616832,
+            "client_ms": 295.512,
+            "engine_ms": 294.47,
+            "execute_ms": 291.588,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_20": {
+            "allowed": 20,
+            "rows": 616832,
+            "client_ms": 316.97,
+            "engine_ms": 315.785,
+            "execute_ms": 294.085,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_100": {
+            "allowed": 100,
+            "rows": 616832,
+            "client_ms": 326.307,
+            "engine_ms": 324.494,
+            "execute_ms": 294.407,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "match_all": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 28.136,
+            "engine_ms": 19.481,
+            "execute_ms": 19.26,
+            "same_ordered_ids_as_full_prefix": false
+          }
+        },
+        "rank_score_sha256": "7223e8fcf6f79c2c7465e24dceb612d5d2e55b80b70a05b7257e6f3fb6dc8048"
+      },
+      "credentials": {
+        "minimum_membership_recall": {
+          "basic": 1.0,
+          "api_key": 1.0
+        },
+        "timing": {
+          "basic": {
+            "write_batch": {
+              "p50_ms": 75.215,
+              "p95_ms": 87.85,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 48.955,
+              "p95_ms": 49.677,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 49.573,
+              "p95_ms": 50.084,
+              "n": 64
+            }
+          },
+          "api_key": {
+            "write_batch": {
+              "p50_ms": 27.393,
+              "p95_ms": 44.617,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 1.19,
+              "p95_ms": 1.297,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 1.898,
+              "p95_ms": 2.057,
+              "n": 64
+            }
+          }
+        }
+      }
+    },
+    "0.3.2+v03.7f6031aebd": {
+      "binary_sha256": "62b455bb9bad35edfb25526a04708529249aae48997f941293577a5b03b06478",
+      "lexical": {
+        "query_id": "86:archive:after-schema-change:1",
+        "words": 100,
+        "distinct_lowercase_words": 69,
+        "warmup_rounds_excluded": 2,
+        "measured_rounds": 9,
+        "cells": {
+          "full_100": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 47.092,
+            "engine_ms": 37.811,
+            "execute_ms": 37.047,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_20": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 45.752,
+            "engine_ms": 36.989,
+            "execute_ms": 36.629,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "full_1": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 44.666,
+            "engine_ms": 36.054,
+            "execute_ms": 35.829,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "first16": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 17.632,
+            "engine_ms": 8.534,
+            "execute_ms": 7.755,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "first50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 31.476,
+            "engine_ms": 22.342,
+            "execute_ms": 21.496,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "second50": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 31.814,
+            "engine_ms": 22.59,
+            "execute_ms": 21.777,
+            "same_ordered_ids_as_full_prefix": false
+          },
+          "unique": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 46.934,
+            "engine_ms": 37.776,
+            "execute_ms": 37.035,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_1": {
+            "allowed": 1,
+            "rows": 616832,
+            "client_ms": 4.004,
+            "engine_ms": 2.994,
+            "execute_ms": 0.18,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_20": {
+            "allowed": 20,
+            "rows": 616832,
+            "client_ms": 24.053,
+            "engine_ms": 22.872,
+            "execute_ms": 1.046,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "allow_100": {
+            "allowed": 100,
+            "rows": 616832,
+            "client_ms": 34.507,
+            "engine_ms": 32.82,
+            "execute_ms": 1.913,
+            "same_ordered_ids_as_full_prefix": true
+          },
+          "match_all": {
+            "allowed": 59273,
+            "rows": 616832,
+            "client_ms": 11.666,
+            "engine_ms": 3.056,
+            "execute_ms": 2.85,
+            "same_ordered_ids_as_full_prefix": false
+          }
+        },
+        "rank_score_sha256": "7223e8fcf6f79c2c7465e24dceb612d5d2e55b80b70a05b7257e6f3fb6dc8048"
+      },
+      "credentials": {
+        "minimum_membership_recall": {
+          "basic": 1.0,
+          "api_key": 1.0
+        },
+        "timing": {
+          "basic": {
+            "write_batch": {
+              "p50_ms": 75.252,
+              "p95_ms": 186.505,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 49.146,
+              "p95_ms": 50.866,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 49.834,
+              "p95_ms": 51.752,
+              "n": 64
+            }
+          },
+          "api_key": {
+            "write_batch": {
+              "p50_ms": 27.595,
+              "p95_ms": 88.651,
+              "n": 16
+            },
+            "lexical": {
+              "p50_ms": 0.957,
+              "p95_ms": 1.109,
+              "n": 64
+            },
+            "dense": {
+              "p50_ms": 1.9,
+              "p95_ms": 2.048,
+              "n": 64
+            }
+          }
+        }
+      }
+    }
+  }
+}

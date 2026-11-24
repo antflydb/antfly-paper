@@ -1,0 +1,21 @@
+{
+  "returned": [
+    "replay.pdf#page=1"
+  ],
+  "replay_requests": {
+    "mapped": 2,
+    "missing": 2
+  },
+  "a_vectors": 6,
+  "b_vectors": 6,
+  "extraction": {
+    "unit_count": 6,
+    "chunk_count": 6,
+    "ocr_attempted_count": 4,
+    "ocr_selected_count": 2,
+    "ocr_failed_count": 0
+  },
+  "live_reads": {
+    "served": 11
+  }
+}

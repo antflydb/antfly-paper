@@ -1,0 +1,95 @@
+{
+  "source": {
+    "source": "authored text with release embeddings",
+    "chunks": 3,
+    "embedding_a": "BAAI/bge-small-en-v1.5",
+    "embedding_b": "google/embeddinggemma-2",
+    "dimensions": [
+      384,
+      768
+    ]
+  },
+  "engine": "antfly",
+  "rows_per_generation": 8,
+  "b_indexed_counts": {
+    "full_text_index_v0": 8,
+    "vec": 8
+  },
+  "model_metrics": {
+    "model_batches": 1,
+    "model_seconds": 0.14093850005883723,
+    "embedded_chunks": 3,
+    "write_batches": 1,
+    "write_call_seconds": 0.05242283293046057
+  },
+  "cutover_probe": {
+    "id": "lamps-after-schema-change",
+    "pages": [
+      "lamp.pdf#page=1",
+      "rope.pdf#page=1"
+    ],
+    "encoder": "b"
+  },
+  "release": "0.3.1",
+  "receipt_sha256": "019d3c65e6f7052768cf4e9e3ab9dd0b6173343f52f961b4b13ae3b85d8e9cc0",
+  "embedding_b_revision": "914f7f89142e33e77833254d9c9b90c3cef7303b",
+  "scored_cells": {
+    "a-initial-lexical": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "a-initial-dense": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "a-initial-hybrid": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "a-after-schema-change-lexical": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "a-after-schema-change-dense": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "a-after-schema-change-hybrid": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "b-after-schema-change-lexical": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "b-after-schema-change-dense": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    },
+    "b-after-schema-change-hybrid": {
+      "queries": 2,
+      "recall": 1.0,
+      "complete": 1.0,
+      "ineligible": 0
+    }
+  },
+  "scheduled_arrivals": 5,
+  "observed_arrivals": 5,
+  "errors": 0
+}

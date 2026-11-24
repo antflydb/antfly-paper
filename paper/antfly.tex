@@ -42,8 +42,11 @@ rules compose inside retrieval rather than through application-side joins.
 
 We describe the architecture, its consistency and failure semantics, and the
 costs of owning derived state while keeping inference compute disaggregated.
-We propose experiments that test these guarantees against a well-built
-external pipeline, including where ownership costs more.
+In controlled release experiments, a query held across an index-alias switch
+kept its original encoder and index. In a small remote archive, Antfly and
+a PostgreSQL pipeline both preserved the surviving page citation after a
+correction and enforced a restriction on an intermediate graph node.
+PostgreSQL completed a separate 1,024-vector backfill in roughly half the time.
 \end{abstract}
 
 \maketitle
@@ -152,8 +155,8 @@ reports one and otherwise the configured model; $\mathit{ver}$ and
 $\mathit{gen}$ are the source version (digest and incarnation) and the
 producer generation, with starred values current. An artifact is recomputed
 when its fingerprint changes and published only while its source version and
-generation are current, so superseded work never lands and unchanged inputs
-are never recomputed. Asynchronous writes may leave the previous published
+generation are current, so a late response cannot replace a newer source version. A matching
+committed artifact can be reused on replay. Asynchronous writes may leave the previous published
 representation visible until its replacement is ready. A new embedding space
 builds as a new generation beside the old one; an index alias then moves
 serving, together with the matching query encoder, atomically once the new
@@ -202,30 +205,26 @@ consistency.
 \paragraph{Placement.} These guarantees hold whether a model runs in the
 database process, in an isolated worker or behind a remote API.
 
-\paragraph{A running example.} A support agent logs a call. The
-recording is transcribed, and the agent's typed notes, which contain the
-caller's phone number, are chunked, embedded and mined for entities. While an
-embedding-model upgrade builds a new generation, the customer's account is
-restricted. Then the agent corrects the notes while the old enrichment work
-is still in flight, and a worker crashes. Table~\ref{tab:invariants} states what every query
-must observe at each step, and the mechanism Antfly uses. Each invariant is
-also a test in \S\ref{sec:eval}, applied to Antfly and to an external
-pipeline alike.
+\paragraph{A running example.} Two Treasury reports support the same payment.
+A researcher searches for the agency, follows the payment relationship, and
+opens its supporting pages. A correction replaces the scanned ledger at the
+same object key. The application commits a reference to the new object
+version. Another page still supports the original payment. During an embedding
+upgrade, one tenant loses access to a node connecting a payment to its source.
+Which facts can the researcher retrieve, and which work must run again?
 
 \begin{table*}[t]
-  \caption{Invariants for one support call.}
+  \caption{Serving obligations for a changing archive.}
   \label{tab:invariants}
   \small
-  \begin{tabularx}{\textwidth}{@{}p{0.24\textwidth}LL@{}}
+  \begin{tabularx}{\textwidth}{@{}p{0.23\textwidth}LL@{}}
     \toprule
-    Event & Required invariant & Antfly mechanism \\
+    Event & Observable obligation & Instrument \\
     \midrule
-    The call is written and enrichment starts & No index reports the call complete until every stage it depends on has published & Readiness reported per index: queryable versus complete \\
-    A privacy policy covers the notes & No chunk, vector, text-index entry or extracted entity receives the phone number after policy activation; the detector and original source are inventoried separately & Redaction rewrites the producer graph so every index and extractor reads one sanitized projection \\
-    An embedding upgrade from model A to model B begins & No query mixes A and B vectors; the call stays searchable under A until B is ready & B builds as a new generation beside A; an index alias moves serving and the query encoder atomically when B is ready \\
-    The customer's account is restricted mid-upgrade & No query in either generation returns the call's chunks or entities to a user who lost access & Row filters inside every retrieval operator, graph hop and agent tool call \\
-    The notes are corrected while old work is in flight & Superseded work never publishes; derived state converges to the corrected source & Source-version guards and replay from the current version \\
-    A worker crashes after the model responds but before commit & Each artifact lands exactly once or is visibly pending & Idempotent publication and visible repair work \\
+    The ledger changes & Reading the old strong ETag at the overwritten key fails. After the correction becomes ready, only the unchanged appendix still supports the old fact. & Conditional object GET and exact page--fact tuples before and after publication. \\
+    A tenant loses access to an intermediate node & Every path and citation returned to that tenant respects the new policy. An authorized reader still retrieves the path. & Authenticated two-hop query and positive control. \\
+    The embedding model changes & A request selects a compatible index and query encoder. While B builds, measure availability and interference on A. & Hold a request across cutover, inspect resolved indexes, and probe the old serving path under offered load. \\
+    A producer crashes or receives a late reply & Committed outputs survive restart. Superseded work cannot replace current artifacts. & Controlled provider, write barriers, independent vector oracle and replay trace. \\
     \bottomrule
   \end{tabularx}
 \end{table*}
@@ -277,8 +276,7 @@ retrieved.
 \section{What it enables}
 \label{sec:enables}
 
-Each capability in Table~\ref{tab:capabilities} is a separate product or
-pipeline elsewhere. In Antfly each is a composition of the contracts in
+The capabilities in Table~\ref{tab:capabilities} compose the contracts in
 \S\ref{sec:state} and \S\ref{sec:identity}, and each depends directly on
 them. Further capabilities are listed in Appendix~\ref{app:capabilities}.
 
@@ -303,6 +301,11 @@ them. Further capabilities are listed in Appendix~\ref{app:capabilities}.
 \section{Related work}
 \label{sec:related}
 
+Pixeltable incrementally maintains multimodal computed columns and embeddings~\cite{pixeltable}.
+DeepDive incrementally constructs knowledge bases from extracted evidence~\cite{deepdive}.
+These systems make dependency maintenance and incremental extraction direct
+precedents. The question here is what a concurrent reader sees after a
+source correction, policy change or model-generation switch.
 Several systems now manage some inference-derived state. OpenSearch semantic
 fields generate embeddings through ML Commons models, retain model IDs in
 field mappings, and can reuse unchanged embeddings~\cite{opensearch-semantic,opensearch-connectors}.
@@ -412,9 +415,8 @@ embedding, stored-data reindexing, progress signals and new-field cutovers. Data
 platform reference rather than an unmeasured performance row. No missing
 measurement is treated as a missing capability.
 
-\paragraph{Method.} The first application is permissioned document search;
-call/meeting and graph applications extend coverage after it meets the same
-acceptance checks on both architectures. Count required services, deployment
+\paragraph{Method.} The application is permissioned archive search. Controlled cases exercise
+source corrections, alias changes and graph traversal under revocation. Count required services, deployment
 configuration and custom lifecycle code separately; the LanceDB measurement
 facade is instrumentation. Compare asynchronous source acknowledgements with
 asynchronous paths, and derived-ready acknowledgements with synchronous paths.
@@ -424,25 +426,92 @@ pinned models measure useful quality and performance. Timing comparisons
 require matched quality and completed work, with errors and availability
 reported alongside latency.
 
-Table~\ref{tab:experiments} lists five primary experiments, in priority
-order, each with the result the design predicts.
+\begin{table}[t]
+  \caption{Paired backfill trials. Each system added 1,024 vectors while
+  serving two queries/s for 60 seconds. Query latency includes queueing
+  from scheduled arrival.}
+  \centering\small
+  \begin{tabular}{@{}crrrr@{}}
+  \toprule
+  & \multicolumn{2}{c}{Backfill (s)} & \multicolumn{2}{c}{Query p95 (ms)}\\
+  Trial & Antfly & Postgres & Antfly & Postgres \\
+  \midrule
+1 & 25.99 & 11.92 & 399 & 343 \\
+2 & 25.79 & 13.54 & 467 & 425 \\
+3 & 25.74 & 12.69 & 485 & 379 \\
+  \bottomrule
+  \end{tabular}
+\end{table}
 
-\begin{table*}[t]
-  \caption{Primary experiments.}
-  \label{tab:experiments}
-  \small
-  \begin{tabularx}{\textwidth}{@{}p{0.16\textwidth}LL@{}}
-    \toprule
-    Experiment & Method & Predicted result \\
-    \midrule
-    Revision fencing & Build separate A0, B1 and A2 generations during writes; switch generation and query encoder together after readiness. Hold old responses, crash during migration, and separately test alias changes and wrong revision acknowledgements. & No query mixes incompatible spaces. Measure freshness, availability, cutover time and coordination work, including failures. \\
-    Authorization under selective filters & On a public 1M-vector, 768-dimension corpus, vary eligibility from 50\% to 0.1\%, random and correlated. Measure recall, completeness, errors and p50/p95; identify Antfly default settings and calibrated peer settings separately. Test policy enforcement independently of predicate correctness. & Native prefiltering and suitable iterative or exact plans can preserve top-$k$ on several systems. A global-top-10 post-filter ablation loses eligible results. Quality misses remain outcomes. \\
-    Crash and update correctness & Gate producer calls; update and delete sources while work is in flight; crash at externally observed boundaries. Separate post-commit replay from response-before-commit failpoints. Match each write mode. & Superseded work cannot overwrite current state; derived-ready reads meet their barrier; asynchronous lag, convergence, retries and repair debt are reported. \\
-    Privacy coverage & Plant personal data; inspect protected consumers and query paths during activation, backfill, updates and deletion. Inventory original stores, detector calls, logs and historical versions separately. & No protected downstream representation or model request receives an original after the policy barrier; detection errors and unavailable time are reported. \\
-    Head-to-head on representative applications & Build call and meeting search with speaker turns, scanned-document search with OCR fallback and redaction, and permission-scoped agent retrieval over an extracted knowledge graph on Antfly and on the external pipeline. Drive each through the events in Table~\ref{tab:invariants}. & Both can maintain the invariants. We measure the coordination code, operating effort, recovery work and interference each needs, and report where ownership costs more, such as rebuild time and upgrade coupling. \\
-    \bottomrule
-  \end{tabularx}
-\end{table*}
+\paragraph{Observed release behavior.}
+On v0.3.1 a held query finished on A after the alias moved to B, and a new
+query resolved B. Deliberately pairing the wrong encoder with an index
+failed the vector oracle. In a separate five-row fixture we held real B
+embedding work, corrected a source and moved it to a different tenant.
+Both databases continued serving A to its authorized reader before the
+correction and excluded the source from its old tenant after acknowledgement.
+The corrected B sentinel passed independent vector probes before cutover.
+In three paired trials at two offered queries/s,
+Antfly and the PostgreSQL outbox both completed 1,024 384-dimensional vectors.
+Median completion times were 25.79 and 12.69 seconds, respectively. Median
+during-backfill trial p95s were 467 and 379 ms. Both used the same isolated
+model service configuration. These timings cover the controlled fixture.
+
+\paragraph{Remote archive.}
+An authored scanned ledger and a born-digital appendix support the same
+payment. Both implementations used a common HTTP object reader, OCR frontend,
+and deterministic relation extractor. A new ledger at the same key invalidated
+the old ETag. A hybrid query seeded a two-hop graph lookup. On both Antfly
+and PostgreSQL, correcting the ledger preserved the appendix citation, and
+revoking access to an intermediate node removed its path for the restricted
+reader. The authorized reader retained both citations. The fixture exercises
+database traversal over matched assertions and a shared external PDF frontend.
+The public artifact includes the scanned source generator, annotations and
+per-reader observations~\cite{antfly-paper-repo}.
+
+\paragraph{Representative document workload.}
+The verified OfficeQA Pro v2 corpus~\cite{officeqa-v2} contains 1,435 PDFs, 118,524 physical pages
+and 90 questions with 823 distinct question--page citations. The protocol compares Antfly, PostgreSQL with pgvector, OpenSearch,
+Vespa, and LanceDB. A synthetic tenant overlay assigns visibility and typed
+metadata independently of the answer keys. Tenants use different metadata
+fields, and both add a typed field after ingestion. The comparison records
+the mappings, indexes, policy enforcement, and application changes each system
+requires. PostgreSQL stores tenant-specific metadata in JSONB alongside shared
+typed columns.
+
+For the matched retrieval comparison, all systems receive the same text,
+chunks, and embeddings. We compare lexical, dense, and hybrid retrieval and
+measure recall over eligible evidence pages, the fraction of queries with
+all eligible evidence retrieved, and any ineligible results. The raw-PDF protocol uses the original questions, the same answer model and budget,
+and the upstream scorer. During model migration, the service continues to
+query generation A while B builds. We measure query tails, availability,
+completed vectors, and time to readiness, then check B with the matching
+query encoder before switching. Controlled fixtures separately establish
+the expected outcomes for crash, stale-response, and privacy tests.
+For the page-image to passage migration, the full-scale protocol replays
+publisher text by PDF version and physical page. Its catalog maps 115,458 of
+118,524 pages. All physical pages enter the visual index and all original
+citation judgments remain eligible for scoring in the public workload. The
+timed migration includes rendering and sending fallback pages, replay lookup,
+chunking and embedding. The artifact reports real OCR measurements separately
+on authored fixtures.
+
+In the native macOS trials, Antfly and LanceDB each re-embedded 251,707
+publisher-text chunks and built 616,832 searchable B rows. At two offered
+queries/s, all 11,719 and 11,308 scheduled A requests completed, respectively,
+with zero ineligible pages. B was ready in 97.7 and 94.2 minutes; A p95
+during the build was 455 and 825 ms (serving alone: 466 and 815 ms).
+After schema evolution, A hybrid page recall@20 was 22.8\% and 21.9\%.
+The paired difference weighted equally across the 90 original questions
+was $+1.2$ percentage points (95\% bootstrap interval $[-1.0,+3.8]$).
+These single trials used a shared application-side BGE worker and a client
+cutover. The artifact reports per-channel recall and timing boundaries.
+
+A separate paired trial on the same host measured a filtered lexical scoring
+optimization. With scoped API keys, all 408 evolved hybrid queries completed
+while 22,528 frozen B rows were indexed. Client p95 fell from 383 ms on
+v0.3.2 to 240 ms on the optimized release-branch build. Every query returned
+the same ordered list of physical pages.
 
 Secondary experiments measure serving-only versus serving-with-backfill under
 fixed offered load, alongside an isolated-inference control with equal total

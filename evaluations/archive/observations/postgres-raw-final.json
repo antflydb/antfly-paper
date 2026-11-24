@@ -1,0 +1,80 @@
+{
+  "engine": "postgres",
+  "frontend": [
+    {
+      "key": "ledger.pdf",
+      "sha256": "ede2427b90601755698c6e22a2398adbdf8f56f06286b7caa79d239ff7e309d3",
+      "extraction": "ocr",
+      "bytes": 38570
+    },
+    {
+      "key": "appendix.pdf",
+      "sha256": "30850f2fbccd118e697d077d7fd81bddfceaaec9cbf8d22c72e797230a549274",
+      "extraction": "native",
+      "bytes": 687
+    },
+    {
+      "key": "ledger.pdf",
+      "sha256": "53cfde0525cc09afdd135d5450dbbfc8c2963a52037932c3dd445e6afc55850f",
+      "extraction": "ocr",
+      "bytes": 40661
+    }
+  ],
+  "checks": {
+    "original-archive": {
+      "correct": 2,
+      "required": 2,
+      "returned": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "missing": [],
+      "unexpected": []
+    },
+    "original-audit": {
+      "correct": 2,
+      "required": 2,
+      "returned": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "missing": [],
+      "unexpected": []
+    },
+    "corrected-archive": {
+      "correct": 2,
+      "required": 2,
+      "returned": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "missing": [],
+      "unexpected": []
+    },
+    "corrected-audit": {
+      "correct": 2,
+      "required": 2,
+      "returned": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "missing": [],
+      "unexpected": []
+    },
+    "revoked-intermediate-audit": {
+      "correct": 1,
+      "required": 1,
+      "returned": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "missing": [],
+      "unexpected": []
+    },
+    "revoked-intermediate-archive": {
+      "correct": 2,
+      "required": 2,
+      "returned": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "missing": [],
+      "unexpected": []
+    }
+  },
+  "input": "shared PDF extraction"
+}

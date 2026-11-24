@@ -53,6 +53,26 @@ class SubjectTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify_image("sha256:" + "b" * 64, "d" * 40, "c" * 64, mismatched)
 
+    def test_unlabeled_official_release_requires_opt_in_and_exact_bytes(self):
+        image = "ghcr.io/antflydb/antfly@sha256:" + "b" * 64
+        def unlabeled(args):
+            if args[0] == "image":
+                return json.dumps([{"Id": "sha256:" + "b" * 64, "Config": {"Labels": {}}}])
+            return "c" * 64 + "  /antfly"
+        with self.assertRaises(ValueError):
+            verify_image(image, "a" * 40, "c" * 64, unlabeled)
+        self.assertEqual(verify_image(image, "a" * 40, "c" * 64, unlabeled, True), "sha256:" + "b" * 64)
+        with self.assertRaises(ValueError):
+            verify_image(image, "a" * 40, "d" * 64, unlabeled, True)
+        with self.assertRaises(ValueError):
+            verify_image("other.example/antfly@sha256:" + "b" * 64, "a" * 40, "c" * 64, unlabeled, True)
+        def contradictory(args):
+            if args[0] == "image":
+                return json.dumps([{"Id": "sha256:" + "b" * 64, "Config": {"Labels": {"org.opencontainers.image.revision": "d" * 40}}}])
+            return "c" * 64 + "  /antfly"
+        with self.assertRaises(ValueError):
+            verify_image(image, "a" * 40, "c" * 64, contradictory, True)
+
 
 if __name__ == "__main__":
     unittest.main()
