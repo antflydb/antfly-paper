@@ -16,7 +16,7 @@ All five A indexes used the same publisher text, chunk identities, query vectors
 
 OpenSearch retrieved all cited pages for more variants than Antfly, while Antfly had higher mean recall. Across the 90 equally weighted original questions, Antfly minus OpenSearch hybrid recall was +3.85 percentage points (paired bootstrap 95% interval +0.57 to +7.83). PostgreSQL's adapter passes the whole question to English `websearch_to_tsquery`, which ordinarily requires all the unquoted terms. OpenSearch uses a `match` query. Vespa uses `userInput` and a separate nearest-neighbor rank profile. Candidate depth counts returned candidates. Token matching, ranking, ANN search effort and prefilter implementations are engine-specific. A comparison of the fastest configurations at fixed recall would need a tuning set separate from these 90 questions. [Adapters](engines.py)
 
-The original readiness gate required a nonempty result from each channel on the first evolved query. On that query PostgreSQL A returned zero lexical and 20 dense pages. Failure on B left PostgreSQL without a verified migration time. Twelve of the 408 queries returned hits on both channels on A in every system. The first such query was ordinal 284, selected retrospectively from A only. A separate run can use `--readiness-probe-ordinal 284` and retain all 408 queries for scoring and traffic. The runner checks both A rankings before building B. A future pre-registered cohort can instead plant a shared known-positive sentinel before any measurements.
+The original readiness gate required a nonempty result from each channel on the first evolved query. On that query PostgreSQL A returned zero lexical and 20 dense pages. Failure on B left PostgreSQL without a verified migration time. Twelve of the 408 queries returned hits on both channels on A in every system. The first such query was ordinal 284, selected retrospectively from A only. The completed PostgreSQL follow-up used `--readiness-probe-ordinal 284` and retained all 408 queries for scoring and traffic. The runner checks both A rankings before building B. A future pre-registered cohort can instead plant a shared known-positive sentinel before any measurements.
 
 ## What the full-run clocks measure
 
@@ -60,7 +60,7 @@ Cells are medians of four trial statistics. Basic credentials added about 49 ms 
 
 The full-size lexical trace includes time spent inside the engine. The matched Linux trials measure how much of that cost persists under comparable deployment and access settings. [Full-size trace](observations/officeqa-retention-profile.json)
 
-The [matched OfficeQA follow-up report](observations/officeqa-matched-followups.md) covers two reverse-order Linux trials per access configuration using frozen B vectors. A separate PostgreSQL trial repeats fresh B inference and compares the original lexical parser with a disjunctive search after timing. Both retain all 408 questions and filter variants for scoring.
+The [matched follow-up report](observations/officeqa-matched-followups.md) records five of ten planned frozen-vector Linux control runs. OpenSearch completed both rounds under each access configuration. Antfly completed one database-policy run with API keys. Five Antfly runs ended without a complete receipt. The separate PostgreSQL follow-up included fresh B inference and compared the original lexical parser with a disjunctive search after timing. All completed trials kept the 408 query variants for scoring.
 
 ### Why one filtered lexical query took 303 ms
 

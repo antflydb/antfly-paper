@@ -2,13 +2,15 @@
 
 PostgreSQL, OpenSearch and Vespa run serially as pinned ARM64 containers in a 6-vCPU, 12-GiB Colima VM on Wolfspider. The native macOS client uses the same BGE service as the native trials.
 
-## Publisher-text migrations
+## Publisher-text encoder migration
 
 | Engine | Rows in B | B ready (min) | Cutover (ms) | A p95 before / during (ms) | Arrivals | Missing / errors | Ineligible | A hybrid recall@20 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| postgres | Run ended without a complete receipt | | | | | | | |
+| postgres | Original readiness probe failed | | | | | | | |
 | opensearch | 616,832 | 93.02 | 16 | 192 / 160 | 11,163 | 0 / 0 | 0 | 20.37% |
 | vespa | 616,832 | 122.95 | 16 | 201 / 159 | 14,754 | 0 / 0 | 0 | 15.43% |
+
+The table covers the original Linux-VM cohort. PostgreSQL returned no lexical hits on the first evolved readiness query and did not complete that gate. A separate run used a known-positive query (ordinal 284), verified 616,832 B rows in 103.20 minutes and recorded zero missing arrivals, query errors or ineligible pages. The native macOS Antfly and LanceDB trials used a shared application-side embedding worker and client cutover. [PostgreSQL follow-up](officeqa-matched-followups.md) · [Native trials](../REPORT.md#work-completed-during-migration) · [Probe selection and deployment boundaries](../COMPARABILITY.md)
 
 Full receipt SHA-256 digests
 
@@ -17,15 +19,11 @@ Full receipt SHA-256 digests
 
 ## Raw PDFs and original questions
 
-Awaiting the verified raw corpus manifest.
+The verified OfficeQA Pro v2 inventory contains 1,435 PDFs, 118,524 physical pages and 90 questions with 823 distinct question–page citations. The original-question retrieval experiment measured hybrid page recall@20 of 14.17% for Antfly and 14.06% for LanceDB over publisher text. End-to-end exact-answer scores for Antfly, PostgreSQL and the oracle remain unreported. [Corpus verification](corpus-verification.json) · [Original-question retrieval receipt](officeqa-original-recall.json)
 
-All arms use the same local Gemma 4 E4B QAT reader, the upstream exact scorer, and identical budgets. Citation ratios are micro-aggregated across questions.
+## Page-image to passage migration
 
-| Context source | Questions | Exact answer | Correct / returned citations | Correct / required citations |
-| --- | ---: | ---: | ---: | ---: |
-| antfly | Awaiting receipt | | | |
-| postgres | Awaiting receipt | | | |
-| oracle | Awaiting receipt | | | |
+As of November 24, 2026, the v0.3.3 campaign on Wolfspider was preparing image vectors and text passages and building the native raster lookup. Five application-managed engine trials and a separate Antfly-native PDF trial are queued after preparation. Full-corpus build times, cutover measurements and retrieval scores for this experiment are pending. OCR fallback uses pre-extracted publisher text on the full corpus. Real LightOnOCR measurements come from separate, smaller runs. [Protocol and checksums](../README.md#publisher-replay-and-measured-raw-pdf-sample) · [Fixture and sample results](../REPORT.md#page-image-to-text-chunk-migration)
 
 ## Real-page graph extraction
 

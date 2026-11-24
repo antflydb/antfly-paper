@@ -94,6 +94,17 @@ def markdown(data):
         ]
     lines += ["", "Full receipt SHA-256 digests", ""]
     lines.extend(f"- {label} `{r['sha256']}`" for label, r in data.items())
+    planned = [f"{n} {mode}" for n in (1, 2) for mode in ACCESS]
+    missing = [label for label in planned if label not in data]
+    if missing:
+        lines.extend(
+            [
+                "",
+                "Frozen-vector trials without complete receipts: "
+                + ", ".join(missing)
+                + ".",
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 
