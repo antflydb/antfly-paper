@@ -35,13 +35,15 @@ database.
 We present Antfly, an open-source (Apache-2.0) inference-native polymorphic
 database that treats inference-derived artifacts as database-managed state.
 Each artifact is bound to its source version, producer configuration and
-model revision. A durable producer graph provides replay, dependency tracking
-and explicit readiness. Documents, text, vectors, graph relationships and
+model revision. Applications declare the producers. The database tracks their dependencies,
+records outputs for replay and exposes when they are ready to query. Documents, text, vectors, graph relationships and
 relational data share one canonical identity, so filters and authorization
 rules compose inside retrieval rather than through application-side joins.
 
 We describe the architecture, its consistency and failure semantics, and the
 costs of owning derived state while keeping inference compute disaggregated.
+In a PDF ingestion fixture, two enrichment declarations replaced the
+application worker for text extraction, OCR fallback and chunking.
 During an index migration, a query held across the alias switch kept its
 original encoder and index. On OfficeQA, Antfly served all 11,719 scheduled
 queries against the old generation while its replacement grew to 616,832
@@ -399,6 +401,14 @@ as an embedded single file, a replicated server or a sharded cluster.
 \section{Evaluation}
 \label{sec:eval}
 
+\paragraph{Pipeline ownership.} We ask which coordination code an application
+can remove when it declares an inference pipeline in the database, and which
+guarantees a reader can observe as sources or models change. In a v0.3.1
+fixture, we supplied one Antfly instance with three PDF URLs and two
+enrichment declarations. It read two born-digital pages directly, selected
+LightOnOCR for the scanned ledger and indexed four chunks across the three
+sources. The comparison worker made the extraction, fallback and chunking
+decisions in application code. The artifact includes both implementations.
 \paragraph{Migration contract.} An in-flight query must keep its encoder and
 index from the same generation. New queries must continue to see eligible
 records while the replacement builds, and the new generation must pass a
