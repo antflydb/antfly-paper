@@ -24,34 +24,28 @@
 \renewcommand{\shortauthors}{Roetker et al.}
 
 \begin{abstract}
-Before data can be queried, applications derive representations of it with
-models: transcripts, extracted text, chunks, embeddings, entities and
-redactions. These are produced by external pipelines and stored as ordinary
-records. The database cannot tell whether they are current, mutually
-compatible, authorized or complete. Building and operating these pipelines is
-inference engineering, and we argue its correctness contract belongs in the
-database.
+A scanned ledger can contribute a searchable passage, an embedding and a
+graph edge. When the ledger changes, the application must decide which
+outputs to rebuild and which a reader may still see. Today, application
+workers coordinate these decisions across model services and indexes.
 
-We present Antfly, an open-source (Apache-2.0) inference-native polymorphic
-database that treats inference-derived artifacts as database-managed state.
-Each artifact is bound to its source version, producer configuration and
-model revision. Applications declare the producers. The database tracks their dependencies,
-records outputs for replay and exposes when they are ready to query. Documents, text, vectors, graph relationships and
-relational data share one canonical identity, so filters and authorization
-rules compose inside retrieval rather than through application-side joins.
+Antfly turns inference pipelines into database declarations. This open-source
+polymorphic database tracks the
+source version, producer configuration and model identity behind each
+result, reuses committed outputs on replay, and switches a vector index
+and its query encoder together. Text, vectors and graph edges share the
+source document's identity, so the database can enforce permissions along
+each retrieval path. Inference can run locally or behind a model API.
 
-We describe the architecture, its consistency and failure semantics, and the
-costs of owning derived state while keeping inference compute disaggregated.
-In a PDF ingestion fixture, two enrichment declarations replaced the
-application worker for text extraction, OCR fallback and chunking.
-During an index migration, a query held across the alias switch kept its
-original encoder and index. On OfficeQA, Antfly served all 11,719 scheduled
-queries against the old generation while its replacement grew to 616,832
-searchable rows. LanceDB also sustained continuous service with an
-application-managed cutover. Across five systems we identify where schema
-evolution, tenant filtering and publication are enforced. In a controlled
-remote archive, Antfly and PostgreSQL both preserved the surviving citation
-after a correction and enforced access on an intermediate graph node.
+In a three-PDF fixture, two declarations replaced the worker that extracted
+text, invoked OCR on scans and produced searchable chunks. In a controlled
+model migration, a query held across cutover finished with its original
+encoder and index, and the next query used their replacements. In separate
+OfficeQA trials with application-managed cutover, Antfly served all 11,719
+scheduled queries while building 616,832 replacement rows. LanceDB also
+sustained service. Across five systems we identify which parts of the
+pipeline the database owns and which the application implements.
+
 \end{abstract}
 
 \maketitle
@@ -99,14 +93,11 @@ lineage and deploys. Inference-derived data needs that discipline too, which
 we call \emph{inference engineering}. It also needs three things those tools
 never had to solve: invalidation per row rather than per table,
 model-revision fencing, and permissions carried through every derived output.
-An external orchestrator can provide these guarantees, but only if the
-database exposes and enforces the contracts they depend on: publication
-conditioned on the source version, so superseded work cannot land; serving
-eligibility decided at query time, so readiness and model generations hold
-for every read; and permission constraints applied inside every retrieval
-path. Today each pipeline rebuilds that coordination by hand. Antfly makes it
-a native, reusable abstraction: the database owns the validity of
-inference-derived state, while execution can run wherever it runs best.
+Consider a worker that finishes reading yesterday's ledger after a corrected
+copy arrives. Publishing its perfectly legible text would put a superseded
+record back into search. Antfly checks the source version at publication and
+the generation and permissions at retrieval. Each application can declare
+the producer and use those checks wherever the model executes.
 
 \paragraph{Definition.} An \emph{inference-native} database owns the
 lifecycle and query semantics of inference-derived state, wherever the model
@@ -118,13 +109,11 @@ executes. We separate two concerns:
     or behind a remote model API. The database is model-agnostic: any local or
     hosted model can fill a producer.
 \end{itemize}
-The category is defined by ownership, not placement.
 
-\paragraph{Contribution.} Antfly makes the correctness contract of inference
-engineering explicit and reusable. It turns heterogeneous model outputs from
-externally coordinated pipeline artifacts into replayable, version-fenced,
-permission-aware derived state, shared across data models through one
-document identity.
+\paragraph{Contribution.} We give inference pipelines a database contract
+for publication, replay and retrieval. A producer declaration identifies its
+inputs and model. The database uses those identities to invalidate stale
+work, recover committed results and bind each query to a compatible index.
 
 %--------------------------------------------------------------------------
 \section{Inference-derived state}
@@ -168,16 +157,14 @@ serving, together with the matching query encoder, atomically once the new
 generation is ready. An explicitly pinned revision fails closed when a
 provider cannot confirm it.
 
-\paragraph{Replay, not reproduction.} After a crash or restart, derived state
+\paragraph{Replay after restart.} After a crash or restart, derived state
 is restored from committed data.
 \begin{itemize}
   \item Deterministic producers, such as embedders, are rerun under the same
     model revision.
   \item Non-deterministic producers, such as LLM decisions, are recorded once
     with their inputs and re-applied on replay, never recomputed.
-  \item Persistent failures become visible repair work, not silent gaps. An
-    external pipeline must likewise track failures and expose missing work;
-    our baseline implements that contract rather than omitting it.
+  \item Persistent failures remain visible as incomplete work for repair.
   \item Replay reads the current source version. Work queued for a source
     that has since changed or been deleted is superseded, never published.
   \item A crash between a model response and its commit repeats the model
@@ -321,7 +308,7 @@ entity extraction, categorization, anonymization and
 chunking~\cite{vespa-enrichment}. Its reindexing service refeeds stored
 documents through the indexing chain, reports progress, resumes failures and
 supports a new-field rebuild followed by a query cutover~\cite{vespa-reindexing}.
-These are lifecycle mechanisms, not an external embedding-only pipeline. SurrealDB's Agent Memory, a closed-source
+SurrealDB's Agent Memory, a closed-source
 layer on its multi-model engine, extracts facts from documents with
 provenance, temporal history and scoped grants~\cite{surrealdb-agent-memory}.
 
@@ -401,48 +388,43 @@ as an embedded single file, a replicated server or a sharded cluster.
 \section{Evaluation}
 \label{sec:eval}
 
-\paragraph{Pipeline ownership.} We ask which coordination code an application
-can remove when it declares an inference pipeline in the database, and which
-guarantees a reader can observe as sources or models change. In a v0.3.1
-fixture, we supplied one Antfly instance with three PDF URLs and two
-enrichment declarations. It read two born-digital pages directly, selected
-LightOnOCR for the scanned ledger and indexed four chunks across the three
-sources. The comparison worker made the extraction, fallback and chunking
-decisions in application code. The artifact includes both implementations.
-\paragraph{Migration contract.} An in-flight query must keep its encoder and
-index from the same generation. New queries must continue to see eligible
-records while the replacement builds, and the new generation must pass a
-readiness probe before cutover. We test pinning with a held query and measure
-continued service separately on a permissioned archive.
-\paragraph{Baselines.} Protocols and implementation status live in the
-artifact repository~\cite{antfly-paper-repo}; draft protocols are not completed
-measurements. The retrieval experiment compares PostgreSQL with pgvector
-(shared and partial HNSW indexes under RLS), ParadeDB native vectors, and
-LanceDB Embedded with native prefiltering. PostgreSQL variants are
-configurations of one family. LanceDB uses its supported embedding functions
-and updates, not a mandatory external embedding worker; its trusted
-application supplies authorization predicates, whereas Antfly and PostgreSQL
-also enforce server-owned policies. A correct application is a valid baseline.
+\paragraph{From declarations to searchable pages.} The application submitted
+three PDF URLs to one Antfly v0.3.1 instance. Its first declaration selects
+document extraction with automatic OCR fallback and pins the LightOnOCR
+reader. The second names the first declaration's output, sets a 160-token
+chunk target with zero overlap, and requests a full-text index. The
+comparison worker implements PDF text extraction, the fallback decision,
+the reader call and passage splitting in application code. On Antfly those
+steps required only the two declarations. It read both born-digital pages
+directly, sent only the scanned ledger to OCR, and indexed four chunks
+across the three documents. The artifact includes the declarations, worker
+and per-document observations~\cite{antfly-paper-repo}.
 
-Lifecycle and application experiments compare against a pipeline built to
-succeed: PostgreSQL with versioned artifacts, durable orchestration and
-source-conditioned publication. We also include an ingest-inference reference,
-OpenSearch with semantic fields and ML Commons, using the pinned release's supported
-APIs and license. Vespa is an executed lifecycle reference, using native feed-time
-embedding, stored-data reindexing, progress signals and new-field cutovers. Databricks is a
-platform reference rather than an unmeasured performance row. No missing
-measurement is treated as a missing capability.
+\paragraph{What the reader sees at cutover.} We held a v0.3.1 query open on
+generation A and moved the alias to B. The held query finished with A's
+encoder and index. A new query used B's pair. Deliberately pairing the
+wrong encoder with an index failed the independent vector check. The OfficeQA
+trials below measure continued service during a rebuild at corpus scale.
 
-\paragraph{Method.} The application is permissioned archive search. Controlled cases exercise
-source corrections, alias changes and graph traversal under revocation. Count required services, deployment
-configuration and custom lifecycle code separately; the LanceDB measurement
-facade is instrumentation. Compare asynchronous source acknowledgements with
-asynchronous paths, and derived-ready acknowledgements with synchronous paths.
-Use identical models and total compute budgets to isolate ownership from
-placement. Synthetic providers expose causal correctness boundaries; real
-pinned models measure useful quality and performance. Timing comparisons
-require matched quality and completed work, with errors and availability
-reported alongside latency.
+\paragraph{Baselines.} The retrieval protocol compares PostgreSQL with
+pgvector (shared and partial HNSW under row-level security), ParadeDB native
+vectors and LanceDB Embedded with native prefiltering. LanceDB supports
+embedding functions and updates. In the lifecycle comparison, the
+PostgreSQL application coordinates a durable workflow and conditions
+publication on source versions. OpenSearch supplies semantic fields and
+ML Commons. Vespa supplies feed-time embedding, stored-data reindexing,
+progress signals and new-field cutovers. Table~\ref{tab:comparison}
+compares the individual mechanisms.
+
+\paragraph{Method.} The application is permissioned archive search. The
+artifact separates required services, deployment configuration and custom
+lifecycle code from benchmark instrumentation. Controlled providers let us
+hold an embedding response across a source correction or a model switch.
+The replay control changes the provider's answer on every call, commits one
+answer, disables the provider and restarts the database. It checks both the
+stored answer and the call count. Timing trials use pinned models and
+report the write acknowledgement level, searchable coverage, query
+availability and latency.
 
 \begin{table}[t]
   \caption{Paired backfill trials. Each system added 1,024 vectors while
@@ -461,10 +443,8 @@ reported alongside latency.
   \end{tabular}
 \end{table}
 
-\paragraph{Observed release behavior.}
-On v0.3.1 a held query finished on A after the alias moved to B, and a new
-query resolved B. Deliberately pairing the wrong encoder with an index
-failed the vector oracle. In a separate five-row fixture we held real B
+\paragraph{Correction during backfill.}
+In a five-row v0.3.1 fixture we held real B
 embedding work, corrected a source and moved it to a different tenant.
 Both databases continued serving A to its authorized reader before the
 correction and excluded the source from its old tenant after acknowledgement.
@@ -518,7 +498,8 @@ timed migration includes rendering and sending fallback pages, replay lookup,
 chunking and embedding. The artifact reports real OCR measurements separately
 on authored fixtures.
 
-In the native macOS trials, Antfly and LanceDB each re-embedded 251,707
+In the native macOS trials, a shared application-side BGE worker supplied
+both engines and the client controlled cutover. Antfly and LanceDB each re-embedded 251,707
 publisher-text chunks and built 616,832 searchable B rows. At two offered
 queries/s, all 11,719 and 11,308 scheduled A requests completed, respectively,
 with zero ineligible pages. B was ready in 97.7 and 94.2 minutes; A p95
@@ -526,8 +507,7 @@ during the build was 455 and 825 ms (serving alone: 466 and 815 ms).
 After schema evolution, A hybrid page recall@20 was 22.8\% and 21.9\%.
 The paired difference weighted equally across the 90 original questions
 was $+1.2$ percentage points (95\% bootstrap interval $[-1.0,+3.8]$).
-These single trials used a shared application-side BGE worker and a client
-cutover. The artifact reports per-channel recall and timing boundaries.
+The artifact reports per-channel recall and timing boundaries for each single trial.
 
 \paragraph{Hybrid read latency.} A physical LSM maintenance turn could
 invalidate a parallel lexical and vector search and force a serial retry.
@@ -577,14 +557,13 @@ the change; these timings belong to the two measured commits.
 %--------------------------------------------------------------------------
 \section{Conclusion}
 
-Inference-derived data should not be ordinary application-managed output.
-Its validity depends on source versions, model revisions, readiness and
-permissions, and those conditions must be enforced at the database's commit
-and query boundaries, wherever the models run. Antfly makes that contract
-explicit and reusable: replay, revision consistency, readiness,
-authorization and privacy become database properties rather than pipeline
-conventions. Every earlier workload brought its own index. Inference is the
-next index builder, and the database should own its contract.
+An application can declare how to read a ledger and how to index its
+passages. The database then knows which source and model produced a
+searchable result, which committed output to reuse after a restart, and
+which encoder belongs with the index a reader is using. Owning that
+information lets the database enforce freshness, readiness and permissions
+where it publishes and serves derived data. That is the contract an
+inference-native database provides.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
