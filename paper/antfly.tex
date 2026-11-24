@@ -42,11 +42,12 @@ rules compose inside retrieval rather than through application-side joins.
 
 We describe the architecture, its consistency and failure semantics, and the
 costs of owning derived state while keeping inference compute disaggregated.
-In controlled release experiments, a query held across an index-alias switch
-kept its original encoder and index. In a small remote archive, Antfly and
-a PostgreSQL pipeline both preserved the surviving page citation after a
-correction and enforced a restriction on an intermediate graph node.
-PostgreSQL completed a separate 1,024-vector backfill in roughly half the time.
+Two declarations configured Antfly to extract text from PDFs, invoke OCR on
+scanned pages, and index the resulting passages. When we switched embedding
+models, a query already in flight finished with its original encoder and
+index. In a separate archive experiment, Antfly and a PostgreSQL pipeline
+both preserved the appendix citation after a ledger correction and hid a
+graph path from a reader who lost access to an intermediate node.
 \end{abstract}
 
 \maketitle
