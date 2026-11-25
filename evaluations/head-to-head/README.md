@@ -135,13 +135,15 @@ Only after correctness qualification, add:
 --performance --copies 128 --duration 60 --rate 2
 ```
 
-For a scoped Antfly reader, add `--antfly-reader-auth api_key`. The runner
+Use `--antfly-reader-auth api_key` for new Antfly serving measurements. The runner
 creates a separate key for each tenant's existing read-only account after
 installing its row filter. All tenant reads use that account's key, including
 the checks after restart and tenant reassignment. Administrative setup,
 writes and readiness polls retain the same Basic login in both modes.
-Use `--antfly-reader-auth basic` for the historical control. Both modes
-record the reader credential type in the result and provenance.
+The default, `--antfly-reader-auth basic`, reproduces the historical control.
+Both modes record the reader credential type in the result and provenance.
+The [v0.3.3 credential comparison](../archive/observations/document-reader-auth-v033.md)
+includes the per-arrival data and release-specific commands.
 
 This creates 1,024 controlled page records, **not 1,024 independent natural
 documents**. Retire old generations before measurement. Serve A alone, then

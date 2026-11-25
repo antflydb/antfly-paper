@@ -1,0 +1,458 @@
+{
+  "instrument_commit": "cbd7547ef386856d8660eaa7ac195e62a66d356c",
+  "protocol": "document-main-v3",
+  "source_hashes": {
+    "evaluations/head-to-head/scripts/fixture.py": "acc80d99fe7b4f936706a41cd4fb5160438de85e125597b34c5cf4e24bdf3056",
+    "evaluations/head-to-head/scripts/run.py": "19cc26250fb800b4f6e3173d1250bf8e8a42324b1d649ab6dbc0cde367ba3a8f",
+    "evaluations/head-to-head/scripts/gateway.py": "f575a39947d5da5338ab521c07f51f1e9959fefb816161d74405a7b07711c552",
+    "evaluations/head-to-head/scripts/frontend.py": "ecfa1cd4f118168b3bf7863083d259326322cb15c814af82d6621d57776a7cd5",
+    "evaluations/head-to-head/scripts/test_checkpoint_witness.py": "c2a13384c27b9266832610672de7b25e6e3c2f99e3c684f32577df47e3c08667",
+    "evaluations/head-to-head/scripts/common.py": "12b437be37ef4a4ef50f6e993e01a416b4b33988a24e277506548f4e8aa404ea",
+    "evaluations/head-to-head/scripts/pipeline.py": "4799285083ad1d0bcb0734fe16b85e86232c2ddff10449f6b1b40b640918550e",
+    "evaluations/head-to-head/scripts/traffic.py": "db173e195f037f633e2fe9fe1dafff18ebb0bb79416ee1ea8a28c5bd77b1d216",
+    "evaluations/head-to-head/scripts/test_application.py": "2cad7e0e8fb84c75a52b81875b00eb0933bad6023f98ca481b96ff31d67a602f",
+    "evaluations/head-to-head/scripts/test_vector_oracle.py": "006653532f273e9fadda56769a274a8fc7f8c71236c5d123578180fa043b262a",
+    "evaluations/head-to-head/scripts/vector_oracle.py": "f6e6e6a5f2e1e60e0bb51c1d7d9bda55ef603289069362fdbe8cf08c300544fc",
+    "evaluations/head-to-head/scripts/adapters.py": "fabd15a97b9d92fdae58a41885a0804c272359d4d0282b25f4e028232456609b",
+    "evaluations/retrieval/scripts/runtime.py": "8a7f438f6c471af834616f0443443fb5302df8962d60c06457e288b1eede255a",
+    "evaluations/retrieval/scripts/subject_manifest.py": "140f0c5f76dee7403fa2543575df8ba11f012dfc32ba2f735658c716d12e7c6f",
+    "evaluations/retrieval/requirements.lock": "804528a0995aad24c6414a3217bae3956deea592a615ff1670274bf5a61ec6dd",
+    "evaluations/retrieval/Dockerfile": "7aaddba0832eb7a223f5345f495be593e3f37615aa8bd1a1f580f8d75c389c6d"
+  },
+  "subject": {
+    "name": "main-2d456b7cecc0",
+    "commit": "2d456b7cecc05906b96038fa52859f03472967ad",
+    "image": "ghcr.io/antflydb/antfly@sha256:3751b0655e45f2a07ea46a5e4fedbc89ef2807c5f9b7e42885e5909d66291989",
+    "binary_sha256": "6b2dd95fc028148ea78358549134db86f683ee2e97db8df62643f862065d09ae",
+    "build_profile": "official-release-v0.3.3-linux-arm64-gnu",
+    "manifest_sha256": "4a92741e0f2739715638a2f0ea0f9c64876858ea0e171aa48a9b5e69b2502dc8"
+  },
+  "client_image": "sha256:8c8f22114cabd23f5239fba5c4a9f69e8dd502f70da199208a6e9e62faa2bec8",
+  "fixture_annotations_sha256": "0a550437a9b7cfc2037d5a85e792beeb2a1be07bab94cf6e6eeae431d5c5d6ed",
+  "model_files_sha256": "e435fbcc0dac2178e7fb7bba8d7b3cbb0fe66b9fb1946217f8ea76c24f2f75dc",
+  "caps": {
+    "antfly_database": {
+      "cpus": 3,
+      "memory_gib": 6
+    },
+    "postgres_database": {
+      "cpus": 2,
+      "memory_gib": 5
+    },
+    "postgres_application": {
+      "cpus": 1,
+      "memory_gib": 1
+    },
+    "common_models": {
+      "cpus": 2,
+      "memory_gib": 8
+    },
+    "common_gateway": {
+      "cpus": 0.25,
+      "memory_mib": 256
+    },
+    "common_frontend": {
+      "cpus": 1,
+      "memory_gib": 1
+    }
+  },
+  "common_arguments": {
+    "performance": true,
+    "copies": 128,
+    "duration": 60.0,
+    "rate": 2.0,
+    "diagnostic_extraction_reuse": false,
+    "privacy_before_write": false,
+    "initial_sync": "write",
+    "postgres_worker_batch": 32
+  },
+  "latency_csv_sha256": "29839eb96be642a019020a31d9d804311dda0b990552bc5c72c543147bf6938b",
+  "trials": [
+    {
+      "trial": 1,
+      "auth": "api_key",
+      "status": "completed",
+      "result_sha256": "1bba1b16fdd0b3d98b0ee7b0de5bb6017740f90c3fdaafe95107845d12d96de4",
+      "provenance_sha256": "eea06659d484ea8a6012d7cba1670bf862f2a7af8b5530056820242360a6b0d5",
+      "receipt_sha256": "8d3c669b8880c840b0610d32dbc93f7ead6fb24e4e64853df14023550411ad4b",
+      "checks": {
+        "native-and-scanned-routing": true,
+        "qualification-extracted-content": true,
+        "real-detector-span-control": true,
+        "permissioned-semantic-top1": true,
+        "protected-text-and-relevance": true,
+        "protected-embedding-model-boundary": true,
+        "protected-fulltext": true,
+        "committed-artifacts-survive-restart": true,
+        "held-update-converges-and-delete-persists": true,
+        "permission-restriction": true,
+        "migration-new-space-vectors": true,
+        "vector-oracle-negative-controls": true,
+        "migration-old-space-still-consistent": true,
+        "rollback-new-a-generation": true,
+        "scaled-ingest-complete-counts": true,
+        "backfill-complete-counts": true,
+        "fixed-load-protected-output": true,
+        "backfill-completed": true
+      },
+      "phases": [
+        {
+          "name": "serving-only",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 100.11556200001337,
+              "p95": 119.06822290002026
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 24.813729499982173,
+              "p95": 27.10722085000441
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 100.11556200001337,
+              "p95": 119.06822290002026
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "df350460ecfb142b145d505a6013aba8e463fa3e160cb49e83a057ca4491f6d6"
+        },
+        {
+          "name": "serving-with-backfill",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 110.62341699999934,
+              "p95": 386.40533605000945
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 30.572666999972853,
+              "p95": 89.09582115004184
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 110.62341699999934,
+              "p95": 386.4053360500094
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "5b81718281b47637b099f18c82ddf4cb76e09250f03f5ca513004976c3ca66ca",
+          "completed_target_documents": 1024,
+          "backfill_completion_seconds": 41.414184084
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "auth": "basic",
+      "status": "completed",
+      "result_sha256": "7322fb71dc4ddc412c530a1346bd97976070c392fc4b0fd22ecd53ea609a9b75",
+      "provenance_sha256": "9e8b66394a647064772dbb8f9eddda5525942e8b435913f4f3dacbba52739d09",
+      "receipt_sha256": "46d59b1e63c19064021d653427ea33816b9236d2bf0925bcb4bf59091bc8e696",
+      "checks": {
+        "native-and-scanned-routing": true,
+        "qualification-extracted-content": true,
+        "real-detector-span-control": true,
+        "permissioned-semantic-top1": true,
+        "protected-text-and-relevance": true,
+        "protected-embedding-model-boundary": true,
+        "protected-fulltext": true,
+        "committed-artifacts-survive-restart": true,
+        "held-update-converges-and-delete-persists": true,
+        "permission-restriction": true,
+        "migration-new-space-vectors": true,
+        "vector-oracle-negative-controls": true,
+        "migration-old-space-still-consistent": true,
+        "rollback-new-a-generation": true,
+        "scaled-ingest-complete-counts": true,
+        "backfill-complete-counts": true,
+        "fixed-load-protected-output": true,
+        "backfill-completed": true
+      },
+      "phases": [
+        {
+          "name": "serving-only",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 154.84008350000522,
+              "p95": 176.08902084997456
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 72.95010400002866,
+              "p95": 78.80248959997118
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 154.84008350000522,
+              "p95": 176.08902084997453
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "eee7053339e85e4ac978138f66ee7e9c197887f83aad3854f1f9d04b0159cae9"
+        },
+        {
+          "name": "serving-with-backfill",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 168.15820849998886,
+              "p95": 460.41831874997575
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 78.28020850001849,
+              "p95": 121.2802714999981
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 168.15820849998886,
+              "p95": 460.4183187499757
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "37ffdfdb034f0312b116177abe9501f450355307f72e2247c92194c73b3d1168",
+          "completed_target_documents": 1024,
+          "backfill_completion_seconds": 46.49419470800001
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "auth": "basic",
+      "status": "completed",
+      "result_sha256": "e9f5217dff6cc1b9ecb30b1df1df470a9d0d157dcc288fadf09ae397d4ab53dc",
+      "provenance_sha256": "9e8b66394a647064772dbb8f9eddda5525942e8b435913f4f3dacbba52739d09",
+      "receipt_sha256": "3283514906eae8d2965e0dde23d497add0546a8f2cee8e5b2ff79939c7ff0f36",
+      "checks": {
+        "native-and-scanned-routing": true,
+        "qualification-extracted-content": true,
+        "real-detector-span-control": true,
+        "permissioned-semantic-top1": true,
+        "protected-text-and-relevance": true,
+        "protected-embedding-model-boundary": true,
+        "protected-fulltext": true,
+        "committed-artifacts-survive-restart": true,
+        "held-update-converges-and-delete-persists": true,
+        "permission-restriction": true,
+        "migration-new-space-vectors": true,
+        "vector-oracle-negative-controls": true,
+        "migration-old-space-still-consistent": true,
+        "rollback-new-a-generation": true,
+        "scaled-ingest-complete-counts": true,
+        "backfill-complete-counts": true,
+        "fixed-load-protected-output": true,
+        "backfill-completed": true
+      },
+      "phases": [
+        {
+          "name": "serving-only",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 152.83208299999274,
+              "p95": 161.82334135002918
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 71.64027049998367,
+              "p95": 74.45446489999199
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 152.83208299999274,
+              "p95": 161.82334135002918
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "1cf8891faed04e3a776ff24e19cd310cc2e05f3584689400e8b6a3e803dbb676"
+        },
+        {
+          "name": "serving-with-backfill",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 154.0904169999635,
+              "p95": 407.2144086499691
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 75.77093749998198,
+              "p95": 83.99701665002225
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 154.0904169999635,
+              "p95": 407.2144086499691
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "1ae97457d07a4cdbcf4fe5250c2bd99037b703e40246964606cc3f3a54230185",
+          "completed_target_documents": 1024,
+          "backfill_completion_seconds": 25.896442959000012
+        }
+      ]
+    },
+    {
+      "trial": 4,
+      "auth": "api_key",
+      "status": "execution-incomplete",
+      "result_sha256": "f5f05365cd8f2efb212d9cb64e76a170cfb044d10828e260a77ff0b37c3034ae",
+      "provenance_sha256": "eea06659d484ea8a6012d7cba1670bf862f2a7af8b5530056820242360a6b0d5",
+      "receipt_sha256": "82502ef3e5e4c84f79c4d24418feff54ca261e96a584b8f823b61ccca0e353c3",
+      "checks": {
+        "native-and-scanned-routing": true,
+        "qualification-extracted-content": true,
+        "real-detector-span-control": true,
+        "permissioned-semantic-top1": true,
+        "protected-text-and-relevance": true,
+        "protected-embedding-model-boundary": true,
+        "protected-fulltext": true,
+        "committed-artifacts-survive-restart": true,
+        "held-update-converges-and-delete-persists": true,
+        "permission-restriction": true
+      },
+      "phases": [],
+      "failure": {
+        "phase": "model-migration-during-writes",
+        "error": "OSError",
+        "message": "HTTP 409 /db/v1/tables/documents/indexes/b1: {\"error\":\"table_mutation_conflict\",\"message\":\"table mutation conflict; retry request\",\"retryable\":true}"
+      }
+    },
+    {
+      "trial": 5,
+      "auth": "api_key",
+      "status": "completed",
+      "result_sha256": "115f584735f70721d8837264718554dd20b4f9eb8516672860fb8a8e7db9b9e4",
+      "provenance_sha256": "eea06659d484ea8a6012d7cba1670bf862f2a7af8b5530056820242360a6b0d5",
+      "receipt_sha256": "d529fd367b5e1b519c24c9991b38b98cc01b0a70b2875622b646647cddd7e2ef",
+      "checks": {
+        "native-and-scanned-routing": true,
+        "qualification-extracted-content": true,
+        "real-detector-span-control": true,
+        "permissioned-semantic-top1": true,
+        "protected-text-and-relevance": true,
+        "protected-embedding-model-boundary": true,
+        "protected-fulltext": true,
+        "committed-artifacts-survive-restart": true,
+        "held-update-converges-and-delete-persists": true,
+        "permission-restriction": true,
+        "migration-new-space-vectors": true,
+        "vector-oracle-negative-controls": true,
+        "migration-old-space-still-consistent": true,
+        "rollback-new-a-generation": true,
+        "scaled-ingest-complete-counts": true,
+        "backfill-complete-counts": true,
+        "fixed-load-protected-output": true,
+        "backfill-completed": true
+      },
+      "phases": [
+        {
+          "name": "serving-only",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 96.1691659999957,
+              "p95": 105.78041454999722
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 22.545312500014347,
+              "p95": 23.6591167000114
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 96.1691659999957,
+              "p95": 105.7804145499972
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "eccab67a88a6f0ce81867d3bc3eed184d3db0eb9b71c0568b7eec62cfde3919c"
+        },
+        {
+          "name": "serving-with-backfill",
+          "stats": {
+            "latency_ms": {
+              "n": 120,
+              "p50": 105.11162449998324,
+              "p95": 315.5085413499705
+            },
+            "api_ms": {
+              "n": 120,
+              "p50": 25.990853999985575,
+              "p95": 39.26282050001646
+            }
+          },
+          "summary": {
+            "arrivals": 120,
+            "errors": 0,
+            "unavailable": 0,
+            "email_like_outputs": 0,
+            "unauthorized": 0,
+            "relevant_top1": 120,
+            "latency_ms": {
+              "p50": 105.11162449998324,
+              "p95": 315.50854134997047
+            },
+            "timing": "scheduled arrival through real query embedding and parsed database response; includes queueing and failed-request time"
+          },
+          "raw_sha256": "b9de8cdaf92d4305407af22dd18437a927701c29a7cfca8529fdffdf991d4fb1",
+          "completed_target_documents": 1024,
+          "backfill_completion_seconds": 15.587959874999967
+        }
+      ]
+    }
+  ]
+}
