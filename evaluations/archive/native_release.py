@@ -18,7 +18,7 @@ def main():
     p.add_argument("--binary", type=Path, required=True)
     p.add_argument(
         "--expected-version",
-        choices=("0.3.1", "0.3.2"),
+        choices=("0.3.1", "0.3.2", "0.3.3"),
         help="require this Antfly release for a particular cohort",
     )
     p.add_argument("--state", type=Path, required=True)
@@ -33,7 +33,11 @@ def main():
         [str(args.binary.resolve()), "--version"], text=True, stderr=subprocess.STDOUT
     )
     fields = version.strip().split()
-    if len(fields) < 2 or fields[0] != "antfly" or fields[1] not in {"0.3.1", "0.3.2"}:
+    if (
+        len(fields) < 2
+        or fields[0] != "antfly"
+        or fields[1] not in {"0.3.1", "0.3.2", "0.3.3"}
+    ):
         raise ValueError(f"unexpected archive subject: {version.strip()}")
     if args.expected_version and fields[1] != args.expected_version:
         raise ValueError(f"expected Antfly {args.expected_version}, got {fields[1]}")

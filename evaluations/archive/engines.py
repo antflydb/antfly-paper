@@ -384,9 +384,9 @@ class Antfly:
         }
         if profile:
             body["profile"] = True
-        if mode == "lexical":
+        if mode in ("lexical", "native_hybrid"):
             body["full_text_search"] = {"match": q["question"], "field": "body"}
-        else:
+        if mode != "lexical":
             body["embeddings"] = {"vec": vector}
         r = call(
             self.base + "/db/v1/query",

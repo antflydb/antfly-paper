@@ -17,6 +17,84 @@ from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_model_aware_passages_follow_cursor_and_reject_incomplete_coverage(self):
+        from pdf_vector_compare import passage_vectors
+
+        def page(start, complete):
+            return {
+                "plan_id": "plan",
+                "model_identity": "digest",
+                "gaps": [],
+                "task_type": "RETRIEVAL_DOCUMENT",
+                "dimensions": 768,
+                "source_complete": complete,
+                "status": "complete" if complete else "partial",
+                "start_ordinal": start,
+                "covered_through_ordinal": start + 1,
+                "next_continuation": None if complete else "cursor",
+                "data": [
+                    {
+                        "descriptor": {"ordinal": start, "input_tokens": 150},
+                        "text": str(start),
+                        "embedding": [0.5] * 768,
+                    }
+                ],
+            }
+
+        def respond(_url, _method, req):
+            self.assertEqual(req["policy"], {"target_tokens": 160, "overlap_tokens": 0})
+            self.assertEqual(req["embedding"]["model_identity"], "digest")
+            return (
+                page(1, True) if req.get("continuation") == "cursor" else page(0, False)
+            )
+
+        with patch("pdf_vector_compare.call", side_effect=respond):
+            self.assertEqual(
+                [t for t, _ in passage_vectors("http://local", "ab", "digest")],
+                ["0", "1"],
+            )
+        for invalid in (
+            {"gaps": [1]},
+            {"model_identity": "other"},
+            {"covered_through_ordinal": 0},
+            {"status": "partial", "source_complete": False, "next_continuation": None},
+        ):
+            with (
+                self.subTest(invalid=invalid),
+                patch("pdf_vector_compare.call", return_value=page(0, True) | invalid),
+            ):
+                with self.assertRaises(ValueError):
+                    list(passage_vectors("http://local", "ab", "digest"))
+
+    def test_native_hybrid_uses_one_scoped_request_and_checks_pages(self):
+        from engines import Antfly
+        from latency_backfill import measure
+
+        q = {"tenant": "public", "question": "needle", "a": [0.5]}
+        with patch.dict("os.environ", ARCHIVE_ANTFLY_AUTH="admin:test"):
+            engine = Antfly("http://local", "snapshot", access="api_key")
+        engine.readers["public"] = "reader"
+        hit = {"_id": "id", "_score": 1.5, "_source": {"page": "doc#page=1"}}
+        result = {"responses": [{"status": 200, "hits": {"hits": [hit]}}]}
+        with patch("engines.call", return_value=result) as request:
+            row = measure(engine, q, {"doc"}, True, 0)
+            request.assert_called_once()
+            endpoint, method, body, credential = request.call_args.args
+            self.assertEqual(
+                (endpoint, method, credential),
+                ("http://local/db/v1/query", "POST", "reader"),
+            )
+            self.assertEqual(
+                body["full_text_search"], {"match": "needle", "field": "body"}
+            )
+            self.assertEqual(body["embeddings"], {"vec": [0.5]})
+            self.assertEqual(row["hits"], 1)
+            self.assertEqual(
+                len({row[k] for k in ("digest", "ids_digest", "score_digest")}), 3
+            )
+            with self.assertRaisesRegex(ValueError, "ineligible candidate"):
+                measure(engine, q, set(), True, 0)
+
     def test_paced_backfill_retries_committed_identity(self):
         from latency_backfill import backfill
 

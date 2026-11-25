@@ -141,7 +141,7 @@ For the separate cross-family experiment, prepare a fresh corpus with `corpus.py
 
 ### Native document ingestion and LightOnOCR
 
-The five-engine OfficeQA migration uses a single Python chunker in corpus preparation. Within each physical page it splits on whitespace, takes consecutive groups of 160 words with zero overlap, keeps the short tail and assigns a stable page and chunk ID. Empty pages produce no chunks. Each engine indexes those bodies and vectors. Tenant copies reuse the prepared chunks. The controlled managed-backfill experiment also starts with these chunks. This makes page retrieval comparable across engines.
+The earlier five-engine OfficeQA encoder migration uses a single Python chunker in corpus preparation. Within each physical page it splits on whitespace, takes consecutive groups of 160 words with zero overlap, keeps the short tail and assigns a stable page and chunk ID. Empty pages produce no chunks. Each engine indexes those bodies and vectors. Tenant copies reuse the prepared chunks. The controlled managed-backfill experiment also starts with these chunks. This makes page retrieval comparable across engines.
 
 For the separate native ingestion measurement, use released Antfly standalone with the installed revision of LightOnOCR-3-0.8B and supply source URLs. The two [enrichments](lighton-enrichments.json) select native extraction with automatic OCR fallback and native stored, full-text-indexed chunks targeting 160 tokens with zero overlap. The application submits a source record. The database owns fetching, page selection, OCR and chunk publication. The object store still serves the bytes. The matched application arm uses PDFium, the same reader via the inference API and the page-local 160-word splitter. Word and native-token boundaries can differ.
 
@@ -162,7 +162,7 @@ For implementation effort, compare the application-owned steps, the running proc
 
 The public fixture uses the same EmbeddingGemma 2 model identity and 768-dimensional query vector for both generations. Three single-page PDFs include a scan and a page long enough for two chunks. During B backfill the client corrects the scan and moves a second source outside a reader's tenant. An API-key reader searches the live alias until the compare-and-swap completes. A fourth, two-page PDF checks page attribution after cutover. A separate control renders PNGs in the application and lets Antfly embed the images. This control uses one physical page per source row.
 
-Use a fresh local v0.3.2 standalone on the same machine as the fixture, with both model bundles installed in its models directory. The run creates two disposable tables and two readers. The native leg fetches PDF URLs directly. The control uses PDFium at 144 DPI. The fixture dependencies are `pypdfium2==4.30.0` and `pillow==13.0.0`.
+Use a fresh local v0.3.3 standalone on the same machine as the fixture, with both model bundles installed in its models directory. The run creates two disposable tables and two readers. The native leg fetches PDF URLs directly. The control uses PDFium at 144 DPI. The fixture dependencies are `pypdfium2==4.30.0` and `pillow==13.0.0`.
 
 ```sh
 export ANTFLY_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 24)"
@@ -185,7 +185,7 @@ uv run --with pypdfium2==4.30.0 --with pillow==13.0.0 python pdf_vector_migratio
   --endpoint http://127.0.0.1:38725 --out "$state/qualification"
 ```
 
-For corpus runs through `native_release.py`, use `--expected-version 0.3.2` to pin the subject. The runner writes the observed version and binary SHA-256 to `subject.json` in its state directory. The historical v0.3.1 cohorts can be replayed with `--expected-version 0.3.1`.
+For corpus runs through `native_release.py`, use `--expected-version 0.3.3` to pin the subject. The runner writes the observed version and binary SHA-256 to `subject.json` in its state directory. The historical v0.3.1 cohorts can be replayed with `--expected-version 0.3.1`.
 
 The client writes per-leg JSON receipts. A failed behavioral check gives a nonzero exit even if the database reports complete vector coverage. Fixture timings include model warm-up effects and use a single closed-loop reader. Use the archive campaign for matched latency comparisons.
 
@@ -193,7 +193,7 @@ For the full representation comparison, the admission condition is that a tenant
 
 #### Matched representation fixture for all five engines
 
-Run the shared-input arm to compare Antfly, PostgreSQL/pgvector, OpenSearch, Vespa and LanceDB. A common worker renders the initial pages at 144 DPI, reads embedded text with PDFium, sends pages with less than 50 non-whitespace characters to LightOnOCR, and forms page-local chunks of up to 160 words. It embeds the images, chunks and questions with the same Gemma model identity and writes one input file for all adapters. Use a loopback inference endpoint serving both models, then run from the repository root:
+The shared-input PDF arm fetches and renders the same physical pages for each adapter. For passage generation, the application calls Antfly’s model-aware `/ai/v1/chunk` with the pinned EmbeddingGemma 2 identity, the `RETRIEVAL_DOCUMENT` task, a 160-token target, zero overlap and 768 dimensions. It follows every continuation and requires complete coverage. All five adapters use those boundaries and vectors. The native Antfly arm uses its configured extraction, chunk and index enrichments. Start a loopback inference endpoint with both model bundles to prepare the public fixture.
 
 ```sh
 python evaluations/archive/pdf_vector_compare.py prepare --models "$MODEL_URL" --out "$INPUTS"
@@ -204,7 +204,7 @@ Every adapter serves A while B is partially populated. The client applies the sa
 
 #### Full OfficeQA representation campaign
 
-Use the v0.3.2 binary that passed the PDF fixture. Start its loopback inference server with the qualified Gemma and LightOnOCR bundles and `--scratch-budget-mb 16384`. On Wolfspider the first 233 PDFs ran with a 6 GiB scratch budget. A later OCR request required 12.63 GiB. Preparation resumed with a 16 GiB budget, which the full native PDF trial also uses. The preparation and database stages run serially on the benchmark host. Paths for the prepared inputs, raw rankings and database state must point to private storage.
+Use the v0.3.3 binary for new runs. Start its loopback inference server with the qualified Gemma and LightOnOCR bundles and `--scratch-budget-mb 16384`. On Wolfspider the first 233 PDFs ran with a 6 GiB scratch budget. A later OCR request required 12.63 GiB. Preparation resumed with a 16 GiB budget, which the full native PDF trial also uses. The preparation and database stages run serially on the benchmark host. Paths for the prepared inputs, raw rankings and database state must point to private storage.
 
 ```sh
 python evaluations/archive/pdf_archive_inputs.py --models "$MODEL_URL" --data "$OFFICEQA" \
@@ -214,7 +214,7 @@ python evaluations/archive/pdf_archive_campaign.py --inputs "$INPUTS" --data "$O
   --out "$RESULTS" --state "$DB_STATE"
 ```
 
-Preparation checks the frozen inventory, renders every physical page at 144 DPI, and checkpoints both representations per PDF. Generation A contains one 768-dimensional image vector per page. Generation B contains same-model vectors for 160-word page-local passages. Pages with fewer than 50 non-whitespace characters go to LightOnOCR at 150 DPI. The shared worker requests up to 8,192 output tokens on the first call. A response that truncates at that ceiling retains the available PDF text layer and records the physical page and failed attempt. Pages with no usable text remain in the image index and in the original judgment population. OCR token totals count only calls that returned usage. Rerunning the preparation command verifies completed checkpoints and resumes remaining PDFs. When resuming an older run, the worker freezes the already-committed prefix in `identity.json` as `legacy_ocr_pdfs`. Those PDFs used 4,096 tokens with one retry at 8,192. To reproduce that schedule from scratch, pass `--legacy-ocr-pdfs N` with the recorded prefix length. Each new PDF receipt records its token limits. The final manifest groups completed-PDF processing time, OCR wall time, pages and calls by token policy. Processing time excludes downtime and abandoned attempts.
+Preparation checks the frozen inventory, renders every physical page at 144 DPI, and checkpoints both representations per PDF. Generation A contains one 768-dimensional image vector per page. Generation B uses the same model to chunk and embed each physical page through `/ai/v1/chunk`, targeting 160 tokens per passage with zero overlap. Pages with fewer than 50 non-whitespace characters go to LightOnOCR at 150 DPI. The shared worker requests up to 8,192 output tokens on the first call. A response that truncates at that ceiling retains the available PDF text layer and records the physical page and failed attempt. Pages with no usable text remain in the image index and in the original judgment population. OCR token totals count only calls that returned usage. Rerunning the preparation command verifies completed checkpoints and resumes remaining PDFs. When resuming an older run, the worker freezes the already-committed prefix in `identity.json` as `legacy_ocr_pdfs`. Those PDFs used 4,096 tokens with one retry at 8,192. To reproduce that schedule from scratch, pass `--legacy-ocr-pdfs N` with the recorded prefix length. Each new PDF receipt records its token limits. The final manifest groups completed-PDF processing time, OCR wall time, pages and calls by token policy. Processing time excludes downtime and abandoned attempts.
 
 The five shared-input trials measure database build and serving time using identical prepared vectors. Both generations start with the frozen tenant fields, and Antfly uses `sync_level=write` with an explicit searchable-coverage check. Each trial verifies the distinct expected row counts of A and B, serves dense A queries during B construction, and switches the application route after B coverage and a scoped dense probe. The sixth trial supplies content-addressed PDF URLs directly to Antfly, measures managed indexing and switches the native alias. It uses the release's native text extraction, OCR fallback and 160-token chunker. The application OCR token policy applies only to shared-input preparation. The native trial reports the engine's own OCR outcomes. Tenant-visible source copies and native extraction counts are reported separately. Correction and revocation are exercised on the authored fixture.
 
@@ -222,15 +222,18 @@ The campaign records original-question citation recall@20, tenant-filtered recal
 
 #### Publisher replay and measured raw-PDF sample
 
-Use the pinned private V2 dataset, frozen workload, Antfly v0.3.2 binary and model bundles described above. Keep all generated catalogs, PDF hashes, rendered images, rankings and database directories on private storage. The public fixture uses synthetic documents.
+Use the pinned private V2 dataset, frozen workload, Antfly v0.3.3 binary and model bundles described above. Keep all generated catalogs, PDF hashes, rendered images, rankings and database directories on private storage. The public fixture uses synthetic documents.
 
-Build the auxiliary raster fingerprint tool from a clean checkout of the Antfly v0.3.2 source with its matching Zig toolchain. It uses the release’s PDF renderer to reproduce the PNG bytes supplied to a remote image reader. The database under test is the released executable.
+Use a fresh run directory and raster catalog for v0.3.3. Checkpoints identify the binary and chunk policy. The earlier publisher-text encoder experiment used whitespace chunks; its receipts retain that definition. The Darwin arm64 v0.3.3 archive SHA-256 is `bd2c8291b287f57a3737502f12caaa21a4e57a761f44472e37654062409f5740`, and its extracted `antfly` binary SHA-256 is `29c39c36b6449512084b10cbd41ad606a579041053062ba95d01fff20377ce16`. Verify the archive against `antfly_zig_checksums.txt` and check `antfly version` before use.
+
+Build the auxiliary raster fingerprint tool from a clean checkout of the Antfly v0.3.3 source with its matching Zig toolchain. It uses the release’s PDF renderer to reproduce the PNG bytes supplied to a remote image reader. The database under test is the released executable.
 
 ```sh
-git clone --depth 1 --branch v0.3.2 https://github.com/antflydb/antfly.git "$BUILD/antfly"
+git clone --depth 1 --branch v0.3.3 https://github.com/antflydb/antfly.git "$BUILD/antfly"
 cp evaluations/archive/pdf_render_hashes.zig "$BUILD/antfly/zig/lib/pdf/src/pdf_bench.zig"
 (cd "$BUILD/antfly/zig" && zig build lib-pdf-bench)
-RENDERER="$BUILD/antfly/zig/zig-out/bin/lib-pdf-bench"
+RENDERER="$BUILD/pdf-render-hashes"
+install -m 755 "$BUILD/antfly/zig/zig-out/bin/lib-pdf-bench" "$RENDERER"
 EVAL=evaluations/archive
 python "$EVAL/publisher_replay.py" build --data "$OFFICEQA" --catalog "$CATALOG" --renderer "$RENDERER"
 python "$EVAL/officeqa_sample.py" --data "$OFFICEQA" --workload "$WORKLOAD" --out "$PRIVATE/sample-workload"

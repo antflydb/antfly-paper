@@ -1,13 +1,11 @@
 # Antfly paper and evaluations
 
-Open-source protocols and reproducible evaluation tools for Antfly. Code is
-Apache-2.0 licensed. This repository contains the evaluation implementation;
-the public archive artifact includes controlled release measurements and the corpus-scale evaluation tools.
+This repository contains the manuscript, evaluation protocols, runners and public aggregate results. The paper and its original figures are licensed under [CC BY 4.0](paper/LICENSE). The evaluation code is licensed under [Apache 2.0](LICENSE). OfficeQA data and model weights are distributed separately under their upstream terms.
 
 ## Paper
 
 [`paper/`](paper) holds the LaTeX source of "Antfly: An Inference-Native
-Polymorphic Database". Build it with `make -C paper pdf`.
+Polymorphic Database". Read the [paper PDF](paper/antfly.pdf) and the [paired native hybrid latency results](evaluations/archive/observations/officeqa-hybrid-1814.md). Build it with `make -C paper pdf`.
 
 ## Evaluations
 
@@ -19,7 +17,7 @@ Polymorphic Database". Build it with `make -C paper pdf`.
 | Revision fencing | [revision-fencing](evaluations/revision-fencing/protocol.md) | Draft |
 | Crash and update correctness | [crash-correctness](evaluations/crash-correctness/protocol.md) | Draft |
 | Privacy coverage | [privacy-coverage](evaluations/privacy-coverage/protocol.md) | Draft |
-| Financial archive, hybrid search and graph evidence | [public archive artifact](evaluations/archive/README.md) | Full-corpus native Antfly and LanceDB [results](evaluations/archive/REPORT.md), five-engine fixture and paired raw PDF graph qualification |
+| Financial archive, hybrid search and graph evidence | [public archive artifact](evaluations/archive/README.md) | [Publisher-text migration results](evaluations/archive/REPORT.md) across five engines, with distinct deployments and readiness probes. The [campaign report](evaluations/archive/observations/officeqa-wolfspider-campaign.md) also tracks the full PDF representation replay. |
 | Head-to-head on representative applications | [protocol](evaluations/head-to-head/protocol.md), [implementation](evaluations/head-to-head/README.md) | Released v0.3.1 qualification and three paired backfill trials completed; see [observations](evaluations/archive/observations/backfill-v031.json) |
 
 Draft protocols state the claim, invariants, method and metrics. They must be

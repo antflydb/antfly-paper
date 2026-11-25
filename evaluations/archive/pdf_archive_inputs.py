@@ -15,19 +15,11 @@ import publisher_replay
 from corpus import fetch_object
 from evidence import page_id
 from native_documents import publish
-from pdf_vector_compare import MODEL, READER, embed_batch
+from pdf_vector_compare import CHUNK_POLICY, MODEL, READER, embed_batch
 
 
 def sha(path):
     return dataset.sha256_file(path)
-
-
-def flush(pending, stream, models, identity):
-    if not pending:
-        return
-    for row in pdf_pipeline.embedded(pending, models, identity):
-        stream.write(json.dumps(row, separators=(",", ":")) + "\n")
-    pending.clear()
 
 
 def bind_ocr_schedule(out, spec, pdfs, legacy_pdfs):
@@ -107,13 +99,13 @@ def prepare(args):
         vectors, identity = embed_batch(args.models, batch, "RETRIEVAL_QUERY", identity)
         encoded.update(zip(batch, vectors, strict=True))
     spec = {
-        "representations": "pdf-images-to-passages-v1",
+        "representations": "pdf-images-to-passages-v2",
         "acquisition_sha256": sha(acquisition),
         "model": MODEL,
         "model_identity": identity,
         "reader": READER,
         "render_dpi": 144,
-        "chunk_words": 160,
+        "chunk_policy": dict(CHUNK_POLICY, provider="antfly", model=MODEL),
         "dimensions": 768,
         "subject": args.subject,
         "workload_sha256": {
@@ -219,7 +211,6 @@ def prepare(args):
         ):
             if len(pdf) != r["physical_pages"]:
                 raise ValueError("physical page count mismatch")
-            pending = []
 
             for index in range(len(pdf)):
                 with closing(pdf[index]) as page:
@@ -248,12 +239,11 @@ def prepare(args):
                         truncated.append(index + 1)
                     if not output["body"].strip():
                         counts["empty_text_pages"] += 1
-                    for passage in pdf_pipeline.passages(row, output["body"]):
-                        pending.append(passage)
+                    for passage in pdf_pipeline.passages(
+                        row, output["body"], args.models, identity
+                    ):
+                        b.write(json.dumps(passage, separators=(",", ":")) + "\n")
                         counts["chunks"] += 1
-                        if len(pending) == 16:
-                            flush(pending, b, args.models, identity)
-            flush(pending, b, args.models, identity)
         for g, file in files.items():
             tmp[g].replace(file)
         counts["a_rows"] = counts["pages"] * (1 + len(metadata[name]))
