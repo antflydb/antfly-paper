@@ -307,7 +307,8 @@ class Antfly:
             )
             self.readers[tenant] = login + ":" + password
 
-    def insert(self, rows):
+    def insert(self, rows, *, timings=None):
+        start = time.monotonic()
         docs = {
             r["id"]: {
                 **{k: v for k, v in r.items() if k not in {"id", "vec"}},
@@ -315,12 +316,15 @@ class Antfly:
             }
             for r in rows
         }
-        result = call(
-            self.base + self.path + "/batch",
-            "POST",
-            {"inserts": docs, "sync_level": self.sync_level},
-            self.admin,
-        )
+        body = {"inserts": docs, "sync_level": self.sync_level}
+        if timings is not None:
+            body = json.dumps(body).encode()
+            encoded = time.monotonic()
+            timings["client_encode_seconds"] = encoded - start
+            timings["request_bytes"] = len(body)
+        result = call(self.base + self.path + "/batch", "POST", body, self.admin)
+        if timings is not None:
+            timings["request_through_ack_seconds"] = time.monotonic() - encoded
         if result.get("status") != "committed":
             raise RuntimeError("Antfly batch not committed")
 
@@ -439,8 +443,14 @@ class Lance:
             )
         return self.table.count_rows()
 
-    def insert(self, rows):
-        self.table.add([{k: r.get(k) for k in self.table.schema.names} for r in rows])
+    def insert(self, rows, *, timings=None):
+        start = time.monotonic()
+        payload = [{k: r.get(k) for k in self.table.schema.names} for r in rows]
+        prepared = time.monotonic()
+        self.table.add(payload)
+        if timings is not None:
+            timings["client_row_projection_seconds"] = prepared - start
+            timings["embedded_add_seconds"] = time.monotonic() - prepared
 
     def finish(self):
         self.table.create_fts_index("body", replace=True)

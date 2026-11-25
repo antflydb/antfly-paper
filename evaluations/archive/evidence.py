@@ -5,6 +5,15 @@ from collections import Counter
 from pathlib import Path
 
 
+def is_pdf_migration(manifest):
+    kind = manifest.get("representations")
+    if kind is None:
+        return False
+    if kind not in {"pdf-images-to-passages-v1", "pdf-images-to-passages-v2"}:
+        raise ValueError(f"unsupported representation protocol: {kind}")
+    return True
+
+
 def citations(row, counts):
     """Publisher citations are one-based physical pages; never infer missing pages."""
     pages = set()

@@ -27,6 +27,8 @@ def main():
     p.add_argument("--corpus", type=Path, required=True)
     p.add_argument("--workload", type=Path, required=True)
     p.add_argument("--migration-models")
+    p.add_argument("--b-batch-size", type=int, choices=(128, 512, 2048))
+    p.add_argument("--readiness-probe-ordinal", type=int, default=1)
     p.add_argument("--original-only", action="store_true")
     args = p.parse_args()
     version = subprocess.check_output(
@@ -106,6 +108,9 @@ def main():
                 "--out",
                 str(args.out),
             ]
+            cmd += ["--readiness-probe-ordinal", str(args.readiness_probe_ordinal)]
+            if args.b_batch_size:
+                cmd += ["--b-batch-size", str(args.b_batch_size), "--access", "api_key"]
             if args.original_only:
                 cmd.append("--original-only")
             if args.migration_models:

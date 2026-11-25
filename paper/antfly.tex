@@ -508,23 +508,15 @@ points (95\% bootstrap interval $[-1.0,+3.8]$).
 A shared application-side BGE worker re-embedded 251,707 distinct chunks
 for each engine. The client switched generations after verifying searchable
 coverage and probing B with its matching encoder. In one native macOS trial
-per engine, Antfly and LanceDB built 616,832 searchable B rows in 97.7 and
-94.2 minutes. At two arrivals/s their serving-only p95s were 466 and 815\,ms.
-During the rebuild they were 455 and 825\,ms. The baseline latency gap
-persisted during migration. All 11,719 and 11,308 scheduled reads completed,
-respectively, with zero ineligible pages. The client issued lexical and
-dense requests in sequence and combined the results. On Antfly their
-individual p95s during the build were 311 and 67\,ms. The end-to-end clock
-also included client dispatch delay. Outside the shared model calls,
-Antfly spent 7.86 minutes through the last write acknowledgement and
-LanceDB 2.09 minutes. From that acknowledgement to verified readiness
-took 1.10 and 10.43 seconds, respectively.
-
+per engine, Antfly and LanceDB each published 616,832 searchable B rows.
+At two arrivals/s their serving-only p95s were 466 and 815\,ms. During
+replacement they were 455 and 825\,ms. All 11,719 and 11,308 scheduled
+reads completed, respectively, with zero ineligible pages. The client
+issued lexical and dense requests in sequence and combined the results.
 In separate Linux VM trials on the same host, OpenSearch and Vespa reached
-the same B row count in 93.0 and 123.0 minutes. PostgreSQL failed the
-original lexical readiness probe. A follow-up used a known-positive probe
-and verified the row count in 103.2 minutes. The artifact records the
-probe selection and per-engine resource limits~\cite{antfly-paper-repo}.
+the same B row count. PostgreSQL reached it in a follow-up that used a
+known-positive lexical readiness probe. The artifact reports the original
+probe failure, build durations and per-engine resource limits~\cite{antfly-paper-repo}.
 
 \paragraph{Changing the document representation.} On the shared-input
 PDF fixture, all five adapters retrieved the cited page from both image
@@ -533,17 +525,18 @@ appendix. In a separate native Antfly run, the database fetched the PDFs
 and produced both representations. All 112 tenant probes returned results
 during replacement.
 
-The full OfficeQA PDF workload uses the same two deployment patterns.
-In all five application-managed arms, a 119-line Python module coordinates
-PDF fetch, rendering, extraction and passage embedding through shared
-helpers. Native Antfly runs these producers from two index definitions and
-two enrichment declarations. Both paths still need client code for ingestion
-and cutover. Counting the versioned object server and replay reader, the
-native arm uses three deployed services. The server-based application arms
-use four, including a separate embedding service. Embedded LanceDB uses
-three, with the database in the client process. Full-corpus
-image-to-passage timings, end-to-end answer
-accuracy and independently adjudicated real-page graph accuracy remain
+The full OfficeQA PDF protocol compares native Antfly with PostgreSQL/pgvector
+running an application-managed pipeline. Both start with versioned PDFs,
+serve tenant-scoped reads on page-image vectors, and switch to vectors over
+extracted text passages. In Antfly, two index definitions and two enrichment
+declarations specify the producers. In the PostgreSQL deployment, a 119-line
+Python module coordinates PDF fetch, rendering, extraction and passage
+embedding through shared helpers. Both deployments require ingestion and
+cutover code. Counting the object server and publisher-text replay reader,
+the native deployment uses three services. PostgreSQL uses four, including
+a separate embedding service. These counts describe the evaluated deployments.
+Full-corpus image-to-passage results, end-to-end answer accuracy and
+independently adjudicated real-page graph accuracy remain
 unreported~\cite{antfly-paper-repo}.
 
 \paragraph{Hybrid read latency.} A physical LSM maintenance turn could

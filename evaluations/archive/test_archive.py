@@ -17,6 +17,85 @@ from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_pdf_protocol_versions_and_frozen_corpus(self):
+        from evidence import is_pdf_migration
+
+        self.assertFalse(is_pdf_migration({"source": "publisher"}))
+        for version in (1, 2):
+            self.assertTrue(
+                is_pdf_migration(
+                    {"representations": f"pdf-images-to-passages-v{version}"}
+                )
+            )
+        with self.assertRaises(ValueError):
+            is_pdf_migration({"representations": "unrecognized"})
+
+    def test_scheduled_reads_and_public_summary(self):
+        import threading
+        import time
+        from types import SimpleNamespace
+
+        from compare import scheduled_reads
+        from document_study_report import traffic_summary
+
+        page = "private.pdf#page=1"
+        probe = {"id": "private-question", "a": [1]}
+        rows = scheduled_reads(
+            Mock(search=Mock(return_value=[("key", page)])),
+            [probe],
+            {probe["id"]: {"eligible": ["private.pdf"], "pages": [page]}},
+            SimpleNamespace(qps=100, depth=5, k=1),
+            "dense",
+            time.monotonic(),
+            threading.Event(),
+            3,
+            compact=True,
+        )
+        self.assertEqual([r["arrival"] for r in rows], [0, 0.01, 0.02])
+        self.assertTrue(
+            all(r["cited_page_returned"] and r["hit_count"] == 1 for r in rows)
+        )
+        summary = traffic_summary(
+            rows + [{"error": "load generator at concurrency limit"}], 5
+        )
+        self.assertEqual(
+            (
+                summary["completed"],
+                summary["returned_citation"],
+                summary["capacity_drops"],
+                summary["missed"],
+            ),
+            (3, 3, 1, 1),
+        )
+        self.assertNotIn("private", json.dumps(summary))
+
+    def test_sweep_balance_and_final_partial_batch(self):
+        import io
+
+        from compare import load
+        from write_batch_sweep import plan
+
+        order = plan()
+        self.assertEqual(
+            [p[1:] for p in order[:6]], [p[1:] for p in reversed(order[6:])]
+        )
+        self.assertEqual(len(set(p[1:] for p in order)), 6)
+        rows = [
+            {"id": str(i), "page": "p.pdf#page=1", "views": {}, "body": "x", "b": [1]}
+            for i in range(129)
+        ]
+        log = io.StringIO()
+        self.assertEqual(
+            load(
+                Mock(), None, "b", True, live_rows=rows, batch_size=128, batch_log=log
+            ),
+            129,
+        )
+        entries = [json.loads(s) for s in log.getvalue().splitlines()]
+        self.assertEqual(
+            [(e["first_row"], e["rows"]) for e in entries], [(0, 128), (128, 1)]
+        )
+
     def test_model_aware_passages_follow_cursor_and_reject_incomplete_coverage(self):
         from pdf_vector_compare import passage_vectors
 

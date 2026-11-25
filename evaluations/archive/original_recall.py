@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import dataset
-from evidence import citations, page_id, score_pages
+from evidence import citations, is_pdf_migration, page_id, score_pages
 
 
 def main():
@@ -54,9 +54,7 @@ def main():
     elif args.sample_gold:
         raise ValueError("sample judgments cannot score full corpus")
     scores = {}
-    pdf_migration = (
-        receipt["source"].get("representations") == "pdf-images-to-passages-v1"
-    )
+    pdf_migration = is_pdf_migration(receipt["source"])
     cells = (
         [("a", "dense"), ("b", "dense"), ("b", "lexical"), ("b", "hybrid")]
         if pdf_migration

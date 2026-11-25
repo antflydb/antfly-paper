@@ -3,13 +3,15 @@
 import argparse
 import hashlib
 import json
+import math
 import threading
 import time
 import uuid
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from compare import observations, replay
+from compare import observations, replay, scheduled_reads
 from engines import Antfly, call, filters
 from evidence import page_id
 from native_documents import CONFIG, publish
@@ -63,6 +65,8 @@ class PageSearch:
 
 
 def run(args):
+    if not math.isfinite(args.qps) or args.qps <= 0 or not 0 < args.k <= args.depth:
+        raise ValueError("invalid traffic parameters")
     manifest = json.loads(
         (
             args.corpus / ("native-plan.json" if args.native_plan else "manifest.json")
@@ -155,6 +159,8 @@ def run(args):
     for phase in ("after-schema-change", "original"):
         results.update(replay(live, "a", queries, args, phase, gold, modes=("dense",)))
     probes = [q for q in queries if q["phase"] == "after-schema-change"]
+    if not 1 <= args.probe <= len(probes):
+        raise ValueError("readiness probe outside evolved workload")
     probe = probes[args.probe - 1]
     allowed = {q["id"]: set(gold[q["id"]]["eligible"]) for q in probes}
 
@@ -173,87 +179,64 @@ def run(args):
     if not read(live, probe, "a", "dense"):
         raise ValueError("empty initial scoped probe")
     stop = threading.Event()
-    traffic = Counter()
-    latencies = []
 
-    def serve():
-        i = 0
-        with (args.out / "live.jsonl").open("w") as stream:
-            while not stop.is_set():
-                q = probes[i % len(probes)]
-                i += 1
-                t = time.monotonic()
-                pages = []
-                try:
-                    pages = read(live, q, "a", "dense")
-                    state = "served" if pages else "empty"
-                except (ValueError, RuntimeError, OSError, KeyError) as exc:
-                    state = type(exc).__name__
-                latency = time.monotonic() - t
-                latencies.append(latency)
-                traffic[state] += 1
-                stream.write(
-                    json.dumps(
-                        {
-                            "id": q["id"],
-                            "seconds": latency,
-                            "state": state,
-                            "cited_page_returned": bool(
-                                set(pages).intersection(gold[q["id"]]["pages"])
-                            ),
-                        }
-                    )
-                    + "\n"
-                )
-                if i % 128 == 0:
-                    stream.flush()
-                stop.wait(max(0, 0.5 - latency))
-
-    worker = threading.Thread(target=serve)
-    worker.start()
-    try:
-        started = time.monotonic()
-        for name, cfg in json.loads(CONFIG.read_text()).items():
-            if args.replay_url and name == "document_units_v1":
-                producer = json.loads(cfg["producer_json"])
-                producer["config"]["ocr"]["reader"] = {
-                    "provider": "openai",
-                    "base_url": args.replay_url,
-                    "model": "officeqa-publisher-replay-v1",
-                    "api_key": "loopback-replay",
-                }
-                cfg["producer_json"] = json.dumps(producer)
-            if (
-                "sample" in manifest
-                and not args.replay_url
-                and name == "document_units_v1"
-            ):
-                producer = json.loads(cfg["producer_json"])
-                producer["config"]["ocr"]["reader"]["max_tokens"] = 8192
-                cfg["producer_json"] = json.dumps(producer)
-            api("/artifacts/" + name + "/enrichment", "PUT", cfg)
-        api("/indexes/b", "POST", index_config("passage", manifest["model_identity"]))
-        bc = coverage("b")
-        if not read(direct, probe, "b", "dense"):
-            raise ValueError("empty candidate scoped probe")
-        b_ready = time.monotonic() - started
-        started = time.monotonic()
-        api(
-            alias,
-            "PUT",
-            {
-                "index": "b",
-                "expected_index": "a",
-                "require": "complete",
-                "idempotency_key": "promote",
-            },
+    def traffic(start, limit=None):
+        return scheduled_reads(
+            live, probes, gold, args, "dense", start, stop, limit, compact=True
         )
-        if api(alias)["index"] != "b" or not read(live, probe, "b", "dense"):
-            raise ValueError("alias cutover failed")
-        switch = time.monotonic() - started
-    finally:
-        stop.set()
-        worker.join()
+
+    baseline = traffic(time.monotonic(), len(probes))
+    with ThreadPoolExecutor(1) as pool:
+        started = time.monotonic()
+        future = pool.submit(traffic, started)
+        try:
+            for name, cfg in json.loads(CONFIG.read_text()).items():
+                if args.replay_url and name == "document_units_v1":
+                    producer = json.loads(cfg["producer_json"])
+                    producer["config"]["ocr"]["reader"] = {
+                        "provider": "openai",
+                        "base_url": args.replay_url,
+                        "model": "officeqa-publisher-replay-v1",
+                        "api_key": "loopback-replay",
+                    }
+                    cfg["producer_json"] = json.dumps(producer)
+                if (
+                    "sample" in manifest
+                    and not args.replay_url
+                    and name == "document_units_v1"
+                ):
+                    producer = json.loads(cfg["producer_json"])
+                    producer["config"]["ocr"]["reader"]["max_tokens"] = 8192
+                    cfg["producer_json"] = json.dumps(producer)
+                api("/artifacts/" + name + "/enrichment", "PUT", cfg)
+            api(
+                "/indexes/b",
+                "POST",
+                index_config("passage", manifest["model_identity"]),
+            )
+            bc = coverage("b")
+            if not read(direct, probe, "b", "dense"):
+                raise ValueError("empty candidate scoped probe")
+            b_ready = time.monotonic() - started
+        finally:
+            stop.set()
+            observed = future.result()
+    observed = [row for row in observed if row["arrival"] < b_ready]
+    started = time.monotonic()
+    api(
+        alias,
+        "PUT",
+        {
+            "index": "b",
+            "expected_index": "a",
+            "require": "complete",
+            "idempotency_key": "promote",
+        },
+    )
+    first_hits = read(live, probe, "b", "dense")
+    if api(alias)["index"] != "b" or not first_hits:
+        raise ValueError("alias cutover failed")
+    switch = time.monotonic() - started
     for phase in ("after-schema-change", "original"):
         results.update(replay(live, "b", queries, args, phase, gold))
     extraction = Counter()
@@ -285,14 +268,20 @@ def run(args):
             "tenant_source_rows": len(parents),
             "extraction": dict(extraction),
             "replay_requests": replay_counts,
-            "live_closed_loop": dict(traffic),
-            "live_p95_seconds": sorted(latencies)[(95 * len(latencies) - 1) // 100]
-            if latencies
-            else None,
+            "traffic_protocol": "scheduled-a-reads-v2",
+            "traffic_concurrency": 8,
+            "serving_channel": "dense",
+            "qps": args.qps,
+            "scheduled_arrivals": math.ceil(b_ready * args.qps),
+            "baseline_traffic": baseline,
+            "traffic": observed,
+            "cutover_probe": {"id": probe["id"], "encoder": "b", "pages": first_hits},
         },
     )
     return int(
-        any(state != "served" for state in traffic)
+        len(observed) < math.ceil(b_ready * args.qps)
+        or any(row.get("error") or row.get("ineligible") for row in baseline + observed)
+        or any(r.get("quality", {}).get("ineligible") for r in results.values())
         or bool(
             replay_counts is not None
             and (not replay_counts.get("mapped") or replay_counts.get("rejected"))
@@ -308,6 +297,7 @@ if __name__ == "__main__":
     p.add_argument("--replay-url")
     p.add_argument("--endpoint", required=True)
     p.add_argument("--probe", type=int, default=284)
+    p.add_argument("--qps", type=float, default=2)
     p.add_argument("--k", type=int, default=20)
     p.add_argument("--depth", type=int, default=100)
     p.add_argument("--timeout", type=float, default=30 * 86400)
