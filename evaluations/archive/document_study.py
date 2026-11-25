@@ -10,6 +10,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from urllib.request import urlopen
 
+from native_documents import publish
 from pdf_archive_campaign import (
     archive_binary_digest,
     port,
@@ -42,6 +43,26 @@ def ready(proc, predicate):
     raise RuntimeError("service failed readiness")
 
 
+def model_service_command(binary, models_dir, endpoint, out):
+    config = out / "model-transport.json"
+    publish(config, {"inference": {"http_max_body_mb": 64}})
+    return [
+        binary,
+        "inference",
+        "run",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(endpoint),
+        "--config",
+        config,
+        "--scratch-budget-mb",
+        "16384",
+        "--models-dir",
+        models_dir,
+    ]
+
+
 def run(a):
     if a.embedding_cache and a.stage != "prepare":
         raise ValueError("--embedding-cache applies only to offline preparation")
@@ -67,19 +88,7 @@ def run(a):
             model = stack.enter_context(
                 service(
                     a.out / "models.log",
-                    [
-                        a.binary,
-                        "inference",
-                        "run",
-                        "--host",
-                        "127.0.0.1",
-                        "--port",
-                        str(endpoint),
-                        "--scratch-budget-mb",
-                        "16384",
-                        "--models-dir",
-                        a.models_dir,
-                    ],
+                    model_service_command(a.binary, a.models_dir, endpoint, a.out),
                 )
             )
 
@@ -163,7 +172,6 @@ def run(a):
                     check=True,
                 )
         if not native and a.sample_workload:
-            from native_documents import publish
             from ocr_cost import summarize
 
             publish(a.out / "cost-estimate.json", summarize(a.data, workload, plan))
