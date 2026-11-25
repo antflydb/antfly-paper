@@ -43,6 +43,8 @@ def ready(proc, predicate):
 
 
 def run(a):
+    if a.embedding_cache and a.stage != "prepare":
+        raise ValueError("--embedding-cache applies only to offline preparation")
     digest = archive_binary_digest(a.binary)
     native = a.stage == "native"
     plan = a.prepared_inputs or a.out / ("native-plan" if native else "inputs")
@@ -58,7 +60,8 @@ def run(a):
         verify_representation_manifest(json.loads(prepared.read_text()), digest)
     with ExitStack() as stack:
         url = None
-        if not prepared.exists() or a.stage == "matched":
+        needs_preparation = not prepared.exists() or bool(a.embedding_cache)
+        if needs_preparation or a.stage == "matched":
             endpoint = port()
             url = f"http://127.0.0.1:{endpoint}"
             model = stack.enter_context(
@@ -133,7 +136,7 @@ def run(a):
                 ready(source, fresh.exists)
                 fresh.replace(refs)
                 options += ["--refs", refs]
-            if not prepared.exists():
+            if needs_preparation:
                 subprocess.run(
                     [
                         py,
@@ -149,6 +152,11 @@ def run(a):
                         digest,
                         "--out",
                         plan,
+                        *(
+                            ["--embedding-cache", a.embedding_cache]
+                            if a.embedding_cache
+                            else []
+                        ),
                         *options,
                         *replay,
                     ],
@@ -206,6 +214,11 @@ if __name__ == "__main__":
         "--prepared-inputs",
         type=Path,
         help="reuse a completed input directory with a fresh output cohort",
+    )
+    p.add_argument(
+        "--embedding-cache",
+        type=Path,
+        help="SQLite path for preparation across corpus revisions",
     )
     p.add_argument("--sample-workload", type=Path)
     p.add_argument(

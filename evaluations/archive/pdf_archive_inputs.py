@@ -52,7 +52,7 @@ def bind_ocr_schedule(out, spec, pdfs, legacy_pdfs):
     return scheduled
 
 
-def prepare(args):
+def prepare(args, cache=None):
     import pypdfium2 as pdfium
 
     metadata = json.loads((args.workload / "documents.json").read_text())
@@ -94,9 +94,25 @@ def prepare(args):
     texts = list(dict.fromkeys(q["question"] for q in prompts))
     encoded = {}
     identity = None
-    for start in range(0, len(texts), 16):
-        batch = texts[start : start + 16]
-        vectors, identity = embed_batch(args.models, batch, "RETRIEVAL_QUERY", identity)
+    query_path = args.out / "queries.json"
+    reuse_queries = (
+        cache and query_path.exists() and (args.out / "identity.json").is_file()
+    )
+    # Probe the loaded model before consulting the cross-revision cache.
+    if cache:
+        first, identity = embed_batch(args.models, texts[:1], "RETRIEVAL_QUERY")
+        encoded[texts[0]] = first[0]
+        with cache.db:
+            cache.seed_vector(identity, "RETRIEVAL_QUERY", texts[0], first[0])
+        cache.counts["model_identity_probes"] += 1
+    remaining = texts[1:] if cache else texts
+    embed = cache.embed if cache else embed_batch
+    encode = cache.passages if cache else pdf_pipeline.passage_vectors
+    if reuse_queries:
+        remaining = []
+    for start in range(0, len(remaining), 16):
+        batch = remaining[start : start + 16]
+        vectors, identity = embed(args.models, batch, "RETRIEVAL_QUERY", identity)
         encoded.update(zip(batch, vectors, strict=True))
     spec = {
         "representations": "pdf-images-to-passages-v2",
@@ -151,9 +167,12 @@ def prepare(args):
         publish(marker, spec)
     else:
         spec = bind_ocr_schedule(args.out, spec, pdfs, args.legacy_ocr_pdfs)
-    for q in prompts:
-        q.update(a=encoded[q["question"]], b=encoded[q["question"]])
-    publish(args.out / "queries.json", prompts)
+    if reuse_queries:
+        cache.seed_queries(query_path, prompts, identity)
+    else:
+        for q in prompts:
+            q.update(a=encoded[q["question"]], b=encoded[q["question"]])
+        publish(query_path, prompts)
     if args.native_plan:
         plan = spec | {
             "native_source_plan": True,
@@ -189,6 +208,8 @@ def prepare(args):
                 file.exists() and sha(file) == saved["sha256"][g]
                 for g, file in files.items()
             ):
+                if cache:
+                    cache.seed_passages(files["b"], saved["sha256"]["b"], identity)
                 totals.update(saved["counts"])
                 continue
         source = args.data / r["path"]
@@ -197,6 +218,7 @@ def prepare(args):
         ):
             raise ValueError("changed PDF " + key)
         counts = Counter()
+        cache_before = cache.counts.copy() if cache else None
         truncated = []
         started = time.monotonic()
         if args.refs:
@@ -216,7 +238,9 @@ def prepare(args):
                 with closing(pdf[index]) as page:
                     pid = page_id(name, index + 1)
                     row = {"id": pid, "page": pid, "views": metadata[name]}
-                    vector = pdf_pipeline.visual(page, args.models, identity, counts)
+                    vector = pdf_pipeline.visual(
+                        page, args.models, identity, counts, embed=embed
+                    )
                     a.write(
                         json.dumps(
                             row | {"body": "", "a": vector}, separators=(",", ":")
@@ -240,7 +264,11 @@ def prepare(args):
                     if not output["body"].strip():
                         counts["empty_text_pages"] += 1
                     for passage in pdf_pipeline.passages(
-                        row, output["body"], args.models, identity
+                        row,
+                        output["body"],
+                        args.models,
+                        identity,
+                        encode=encode,
                     ):
                         b.write(json.dumps(passage, separators=(",", ":")) + "\n")
                         counts["chunks"] += 1
@@ -256,6 +284,8 @@ def prepare(args):
             "seconds": time.monotonic() - started,
             "sha256": {g: sha(path) for g, path in files.items()},
         }
+        if cache:
+            record["preparation_cache"] = dict(cache.counts - cache_before)
         publish(rec, record)
         totals.update(counts)
         print(
@@ -301,6 +331,9 @@ if __name__ == "__main__":
         type=int,
         help="replay the old 4096 then 8192 policy for this many initial PDFs in frozen order",
     )
+    p.add_argument(
+        "--embedding-cache", type=Path, help="persistent offline preparation cache"
+    )
     p.add_argument("--application-reader")
     p.add_argument("--refs", type=Path)
     p.add_argument(
@@ -315,4 +348,9 @@ if __name__ == "__main__":
     args.out.mkdir(parents=True, exist_ok=True)
     with (args.out / ".lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        prepare(args)
+        from preparation_cache import open_cache
+
+        with open_cache(args.embedding_cache, args.subject) as cache:
+            prepare(args, cache)
+            if cache:
+                publish(args.out / "last-cache-run.json", dict(cache.counts))

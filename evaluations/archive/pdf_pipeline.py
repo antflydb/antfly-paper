@@ -12,7 +12,7 @@ from evidence import page_id
 from pdf_vector_compare import READER, embed_batch, passage_vectors
 
 
-def visual(page, models, identity, costs):
+def visual(page, models, identity, costs, *, embed=embed_batch):
     with closing(page.render(scale=2)) as bitmap:
         with bitmap.to_pil() as image, io.BytesIO() as stream:
             image.save(stream, "PNG")
@@ -26,7 +26,7 @@ def visual(page, models, identity, costs):
             }
         ]
     }
-    vectors, _ = embed_batch(models, [item], "RETRIEVAL_DOCUMENT", identity)
+    vectors, _ = embed(models, [item], "RETRIEVAL_DOCUMENT", identity)
     return vectors[0]
 
 
@@ -59,8 +59,8 @@ def extract(page, number, models, limits, catalog, sha, costs, application_reade
     return result
 
 
-def passages(row, body, models, identity):
-    for ordinal, (text, vector) in enumerate(passage_vectors(models, body, identity)):
+def passages(row, body, models, identity, *, encode=passage_vectors):
+    for ordinal, (text, vector) in enumerate(encode(models, body, identity)):
         yield row | {
             "id": row["page"] + "#chunk=" + str(ordinal),
             "body": text,
