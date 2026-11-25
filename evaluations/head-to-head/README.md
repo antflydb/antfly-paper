@@ -190,6 +190,23 @@ timing admission.
 
 ## Counting and limitations
 
+Section 7 uses the document implementations from the paired v0.3.1 trial.
+The published counter reads the source at the trial revision. Its unit is a
+physical line containing a Python code token, including multiline SQL.
+Comments and docstrings are excluded. The shared PDF/model frontend accounts
+for 125 lines. Antfly has 123 adapter lines and 109 separately counted
+administrator-inspection lines. PostgreSQL has 42 adapter lines and 309
+service lines. The application-specific totals are 123 and 351 under this
+counting rule. The service combines an HTTP interface and a background worker
+in one process. A PostgreSQL source transaction enqueues work, and the worker
+checks source and policy versions before publishing. Both deployments include
+the shared frontend, a database and model serving. The PostgreSQL deployment
+also starts and recovers the outbox service. The trials measured recovery
+behavior. Engineering and operator hours were unmeasured.
+[Frozen application sources](https://github.com/antflydb/antfly-paper/tree/2c7efb6206715c48ef7bef98276b2e2ceadee4cb/evaluations/head-to-head/scripts) ·
+[Counting procedure](../analysis/summarize_application.py) ·
+[Paired trial checks](../archive/observations/backfill-v031.json)
+
 Administrator-only `inspection_witness` and `inspect_vectors` methods are
 measurement instruments. List their token lines separately from the Antfly
 application adapter; adding a stronger acceptance oracle must not appear as
