@@ -1,5 +1,6 @@
 """Negative controls for the measurement boundary, independent of real models."""
 
+import base64
 import concurrent.futures
 import json
 import os
@@ -11,11 +12,36 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
 import gateway
+from adapters import Antfly
 from common import request
 from traffic import drive, summarize
 
 
 class ApplicationControls(unittest.TestCase):
+    def test_api_key_queries_use_the_requested_readers_key(self):
+        def response(url, _body, **kwargs):
+            if url.endswith("/api-keys"):
+                owner = url.split("/")[-2]
+                self.assertTrue(kwargs["headers"]["Authorization"].startswith("Basic "))
+                return {"key_id": owner, "key_secret": "test-secret"}
+            return {}
+
+        with patch("adapters.request", side_effect=response) as call:
+            app = Antfly("http://fixture", "bootstrap", reader_auth="api_key")
+            for tenant in ("alpha", "beta"):
+                app.api("/echo", tenant=tenant)
+                scheme, credential = call.call_args.kwargs["headers"][
+                    "Authorization"
+                ].split()
+                self.assertEqual(scheme, "ApiKey")
+                self.assertEqual(
+                    base64.b64decode(credential).decode(), tenant + ":test-secret"
+                )
+            before = call.call_count
+            with self.assertRaises(KeyError):
+                app.api("/echo", tenant="unknown")
+            self.assertEqual(call.call_count, before)
+
     def test_scoped_discovery_and_capability_lease_survive_gateway(self):
         seen = []
 

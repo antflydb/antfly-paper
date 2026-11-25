@@ -20,10 +20,14 @@ def wait(predicate, seconds=180):
 
 
 class Antfly:
-    def __init__(self, url, password, *, model_url="http://models:8090"):
+    def __init__(
+        self, url, password, *, model_url="http://models:8090", reader_auth="basic"
+    ):
+        if reader_auth not in ("basic", "api_key"):
+            raise ValueError("unknown Antfly reader authentication")
         self.model_url = model_url
         self.url = url
-        self.password = password
+        self.reader_headers = {}
         self.headers = {
             "Authorization": "Basic "
             + base64.b64encode(("admin:" + password).encode()).decode()
@@ -50,15 +54,25 @@ class Antfly:
                 method="PUT",
             )
 
-    def api(self, path, body=None, method=None, tenant=None):
-        headers = self.headers
-        if tenant:
-            headers = {
-                "Authorization": "Basic "
-                + base64.b64encode(
-                    (tenant + ":" + reader_password(self.password, tenant)).encode()
-                ).decode()
+            if reader_auth == "api_key":
+                key = self.api(
+                    "/auth/v1/users/" + tenant + "/api-keys",
+                    {"name": "document-reader"},
+                    method="POST",
+                )
+                scheme = "ApiKey"
+                credential = key["key_id"] + ":" + key["key_secret"]
+            else:
+                scheme = "Basic"
+                credential = tenant + ":" + reader_password(password, tenant)
+            self.reader_headers[tenant] = {
+                "Authorization": scheme
+                + " "
+                + base64.b64encode(credential.encode()).decode()
             }
+
+    def api(self, path, body=None, method=None, tenant=None):
+        headers = self.headers if tenant is None else self.reader_headers[tenant]
         return request(self.url + path, body, method=method, headers=headers)
 
     def generation(self, name, model=EMBEDDER):
