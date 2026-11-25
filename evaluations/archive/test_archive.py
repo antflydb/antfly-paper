@@ -288,6 +288,82 @@ class ArchiveTests(unittest.TestCase):
                 (1, 20, 0),
             )
 
+    def test_offline_catalog_matches_http_fallback(self):
+        from pdf_archive_inputs import catalog_extract
+        from pdf_pipeline import extract
+        from publisher_replay import page_text
+
+        page = Mock()
+        catalog = sqlite3.connect(":memory:")
+        self.addCleanup(catalog.close)
+        catalog.execute("CREATE TABLE pages(sha,page,body, PRIMARY KEY(sha,page))")
+        catalog.executemany(
+            "INSERT INTO pages VALUES ('v',?,?)",
+            [(1, "  value\n"), (2, None), (3, "  ")],
+        )
+        for number, layer, mode in [
+            (1, "x " * 49, "publisher"),
+            (2, "", "publisher_missing"),
+            (3, "", "publisher"),
+            (4, " z" * 50, "native"),
+        ]:
+            with self.subTest(number=number):
+                page.get_textpage.return_value.get_text_range.return_value = layer
+                page.render.reset_mock()
+                counts = Counter()
+                direct = catalog_extract(page, number, catalog, "v", counts)
+                self.assertEqual(direct["extraction"], mode)
+                self.assertEqual(
+                    counts["publisher_catalog_lookups"], int(mode != "native")
+                )
+                page.render.assert_not_called()
+                image = page.render.return_value.to_pil.return_value
+                image.width, image.height = 8, 8
+                image.save.side_effect = lambda dest, fmt: dest.write(b"raster")
+                with patch(
+                    "common.request",
+                    side_effect=lambda *a, number=number, **kw: {
+                        "data": [{"text": page_text(catalog, "v", number) or ""}]
+                    },
+                ) as request:
+                    self.assertEqual(
+                        direct,
+                        extract(
+                            page,
+                            number,
+                            None,
+                            (),
+                            catalog,
+                            "v",
+                            Counter(),
+                            "http://reader",
+                        ),
+                    )
+                    self.assertEqual(request.call_count, int(mode != "native"))
+        page.get_textpage.return_value.get_text_range.return_value = ""
+        with self.assertRaisesRegex(ValueError, "unknown source"):
+            catalog_extract(page, 1, catalog, "wrong", Counter())
+
+    def test_replay_transport_upgrade_preserves_source_identity(self):
+        from pdf_archive_inputs import bind_replay
+
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            spec = {"reader": "publisher", "acquisition_sha256": "a"}
+            marker = out / "identity.json"
+            marker.write_text(
+                json.dumps(spec | {"replay_transport": "source-page-png-v1"})
+            )
+            bind_replay(out, spec)
+            self.assertEqual(json.loads(marker.read_text()), spec)
+            for changed in (
+                spec | {"acquisition_sha256": "b"},
+                spec | {"replay_transport": "unknown"},
+            ):
+                marker.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, "identity changed"):
+                    bind_replay(out, spec)
+
     def test_ocr_schedule_resume(self):
         inventory = [{"path": name} for name in ("a.pdf", "b.pdf")]
         with tempfile.TemporaryDirectory() as d:

@@ -71,6 +71,7 @@ def run(a):
     plan = a.prepared_inputs or a.out / ("native-plan" if native else "inputs")
     workload = a.sample_workload or a.workload
     replay = [] if a.sample_workload else ["--replay-catalog", a.catalog]
+    application_reader = []
     py = sys.executable
     prepared = plan / ("native-plan.json" if native else "manifest.json")
     if a.prepared_inputs and (a.stage == "prepare" or not prepared.is_file()):
@@ -98,7 +99,7 @@ def run(a):
 
             ready(model, model_ready)
             options = ["--native-plan"] if native else []
-            if not native and replay:
+            if a.stage == "matched" and replay:
                 rp = port()
                 remote = stack.enter_context(
                     service(
@@ -122,7 +123,7 @@ def run(a):
                         return response.status == 200
 
                 ready(remote, app_ready)
-                replay += ["--application-reader", app_url]
+                application_reader = ["--application-reader", app_url]
             if not native:
                 refs = a.out / "source-refs.json"
                 # Publish only after the freshly started server verifies the sources.
@@ -206,7 +207,14 @@ def run(a):
                 *(
                     ["--native-plan", *replay]
                     if native
-                    else ["--pdf-models", url, "--pdf-refs", refs, *replay]
+                    else [
+                        "--pdf-models",
+                        url,
+                        "--pdf-refs",
+                        refs,
+                        *replay,
+                        *application_reader,
+                    ]
                 ),
             ],
             check=True,

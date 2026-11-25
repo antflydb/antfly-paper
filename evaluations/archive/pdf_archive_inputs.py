@@ -52,6 +52,35 @@ def bind_ocr_schedule(out, spec, pdfs, legacy_pdfs):
     return scheduled
 
 
+def catalog_extract(page, number, catalog, sha, counts):
+    from common import pdf_text_layer
+
+    text, needs_reader = pdf_text_layer(page)
+    if not needs_reader:
+        return {"page": number, "body": text, "extraction": "native"}
+    body = publisher_replay.page_text(catalog, sha, number)
+    counts["publisher_catalog_lookups"] += 1
+    return {
+        "page": number,
+        "body": (body or "").strip(),
+        "extraction": "publisher_missing" if body is None else "publisher",
+    }
+
+
+def bind_replay(out, spec):
+    marker = out / "identity.json"
+    if marker.exists():
+        old = json.loads(marker.read_text())
+        # Older preparation receipts replayed the same catalog through HTTP.
+        if old.get("replay_transport") == "source-page-png-v1":
+            old.pop("replay_transport")
+        if old != spec:
+            raise ValueError("checkpoint identity changed")
+    elif any((out / "receipts").glob("*.json")):
+        raise ValueError("checkpoint identity missing")
+    publish(marker, spec)
+
+
 def prepare(args, cache=None):
     import pypdfium2 as pdfium
 
@@ -146,10 +175,6 @@ def prepare(args, cache=None):
         ):
             raise ValueError("publisher catalog is incomplete or mismatched")
         spec["reader"] = publisher_replay.MODEL
-        if not args.native_plan:
-            if not args.application_reader:
-                raise ValueError("publisher replay requires the application reader URL")
-            spec["replay_transport"] = "source-page-png-v1"
     if args.refs:
         refs = json.loads(args.refs.read_text())
         if not set(metadata) <= refs.keys():
@@ -159,12 +184,7 @@ def prepare(args, cache=None):
     if replay:
         if args.legacy_ocr_pdfs:
             raise ValueError("OCR retry schedules do not apply to publisher replay")
-        marker = args.out / "identity.json"
-        if marker.exists() and json.loads(marker.read_text()) != spec:
-            raise ValueError("checkpoint identity changed")
-        if not marker.exists() and any((args.out / "receipts").glob("*.json")):
-            raise ValueError("checkpoint identity missing")
-        publish(marker, spec)
+        bind_replay(args.out, spec)
     else:
         spec = bind_ocr_schedule(args.out, spec, pdfs, args.legacy_ocr_pdfs)
     if reuse_queries:
@@ -248,16 +268,21 @@ def prepare(args, cache=None):
                         + "\n"
                     )
                     counts["pages"] += 1
-                    output = pdf_pipeline.extract(
-                        page,
-                        index + 1,
-                        args.models,
-                        limits,
-                        replay,
-                        r["local_sha256"],
-                        counts,
-                        args.application_reader,
-                    )
+                    if replay and not args.application_reader:
+                        output = catalog_extract(
+                            page, index + 1, replay, r["local_sha256"], counts
+                        )
+                    else:
+                        output = pdf_pipeline.extract(
+                            page,
+                            index + 1,
+                            args.models,
+                            limits,
+                            replay,
+                            r["local_sha256"],
+                            counts,
+                            args.application_reader,
+                        )
                     counts[output["extraction"] + "_pages"] += 1
                     if output["extraction"] == "ocr_truncated":
                         truncated.append(index + 1)
@@ -284,6 +309,12 @@ def prepare(args, cache=None):
             "seconds": time.monotonic() - started,
             "sha256": {g: sha(path) for g, path in files.items()},
         }
+        if replay:
+            record["preparation_reader_transport"] = (
+                "source-page-png-v1"
+                if args.application_reader
+                else "catalog-by-page-v1"
+            )
         if cache:
             record["preparation_cache"] = dict(cache.counts - cache_before)
         publish(rec, record)
@@ -302,7 +333,9 @@ def prepare(args, cache=None):
     for path in receipts.glob("*.json"):
         doc = json.loads(path.read_text())
         limits = doc.get("ocr_token_limits", [4096, 8192])
-        key = ",".join(map(str, limits)) or "publisher replay"
+        key = ",".join(map(str, limits)) or doc.get(
+            "preparation_reader_transport", "source-page-png-v1"
+        )
         group = timing.setdefault(key, Counter())
         for field in (
             "documents",
@@ -313,6 +346,7 @@ def prepare(args, cache=None):
             "replay_calls",
             "replay_submitted_pixels",
             "replay_wall_ms",
+            "publisher_catalog_lookups",
         ):
             group[field] += doc["counts"].get(field, 0)
         group["processing_seconds"] += doc["seconds"]

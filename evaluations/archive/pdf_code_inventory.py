@@ -36,7 +36,7 @@ GROUPS = {
         "Versioned PDF fetch": ("corpus.py", "fetch_object"),
         "PDF extraction, fallback and HTTP helpers": (
             "../head-to-head/scripts/common.py",
-            "extract_page request digest",
+            "pdf_text_layer extract_page request digest",
         ),
         "Tenant expansion and batched loader": ("compare.py", "load"),
         "Client routing, readiness and measurement (mixed)": (

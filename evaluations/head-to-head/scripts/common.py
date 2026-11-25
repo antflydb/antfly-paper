@@ -42,12 +42,19 @@ def request(url, body=None, *, method=None, headers=None, timeout=180):
         raise HTTPFailure(exc, detail) from exc
 
 
-def extract_page(page, number, models, *, reader, costs=None, ocr_token_limits=None):
+def pdf_text_layer(page):
     textpage = page.get_textpage()
-    text = textpage.get_text_range()
-    textpage.close()
+    try:
+        text = textpage.get_text_range()
+    finally:
+        textpage.close()
+    return text.strip(), len("".join(text.split())) < 50
+
+
+def extract_page(page, number, models, *, reader, costs=None, ocr_token_limits=None):
+    text, needs_reader = pdf_text_layer(page)
     mode = "native"
-    if len("".join(text.split())) < 50:
+    if needs_reader:
         image = page.render(scale=150 / 72).to_pil()
         stream = io.BytesIO()
         image.save(stream, "PNG")
