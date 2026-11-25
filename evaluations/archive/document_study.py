@@ -45,11 +45,15 @@ def ready(proc, predicate):
 def run(a):
     digest = archive_binary_digest(a.binary)
     native = a.stage == "native"
-    plan = a.out / ("native-plan" if native else "inputs")
+    plan = a.prepared_inputs or a.out / ("native-plan" if native else "inputs")
     workload = a.sample_workload or a.workload
     replay = [] if a.sample_workload else ["--replay-catalog", a.catalog]
     py = sys.executable
     prepared = plan / ("native-plan.json" if native else "manifest.json")
+    if a.prepared_inputs and (a.stage == "prepare" or not prepared.is_file()):
+        raise ValueError(
+            "--prepared-inputs requires a completed plan for matched or native"
+        )
     if prepared.exists():
         verify_representation_manifest(json.loads(prepared.read_text()), digest)
     with ExitStack() as stack:
@@ -198,6 +202,11 @@ if __name__ == "__main__":
     p.add_argument("stage", choices=["prepare", "native", "matched"])
     for key in ("data", "catalog", "workload", "state", "out", "models-dir", "binary"):
         p.add_argument("--" + key, type=Path, required=True)
+    p.add_argument(
+        "--prepared-inputs",
+        type=Path,
+        help="reuse a completed input directory with a fresh output cohort",
+    )
     p.add_argument("--sample-workload", type=Path)
     p.add_argument(
         "--engines",
