@@ -16,6 +16,16 @@ DETECTOR = "fastino/gliner2.5-base-v1-fp16"
 DETECTOR_DIRECTORY = "fastino/gliner2.5-base-v1-fp16"
 
 
+class HTTPFailure(OSError):
+    def __init__(self, response, detail):
+        path = urllib.parse.urlparse(response.url).path
+        preview = detail[:1000].decode(errors="replace")
+        super().__init__(f"HTTP {response.code} {path}: {preview}")
+        self.status = response.code
+        self.mutation_outcome = response.headers.get("X-Antfly-Raft-Mutation-Outcome")
+        self.detail = detail
+
+
 def request(url, body=None, *, method=None, headers=None, timeout=180):
     req = urllib.request.Request(
         url,
@@ -27,10 +37,9 @@ def request(url, body=None, *, method=None, headers=None, timeout=180):
         with urllib.request.urlopen(req, timeout=timeout) as response:
             return json.load(response)
     except urllib.error.HTTPError as exc:
-        detail = exc.read(1000).decode(errors="replace")
-        raise OSError(
-            f"HTTP {exc.code} {urllib.parse.urlparse(url).path}: {detail}"
-        ) from exc
+        with exc:
+            detail = exc.read(1001)
+        raise HTTPFailure(exc, detail) from exc
 
 
 def extract_page(page, number, models, *, reader, costs=None, ocr_token_limits=None):

@@ -6,7 +6,7 @@ import re
 import time
 from urllib.parse import quote
 
-from common import DETECTOR, EMBEDDER, reader_password, request
+from common import DETECTOR, EMBEDDER, HTTPFailure, reader_password, request
 
 
 def wait(predicate, seconds=180):
@@ -19,11 +19,40 @@ def wait(predicate, seconds=180):
     raise TimeoutError("application readiness deadline")
 
 
+def retryable_index_conflict(error):
+    if (
+        error.status != 409
+        or error.mutation_outcome is not None
+        or len(error.detail) > 1000
+    ):
+        return False
+    try:
+        detail = json.loads(error.detail)
+    except ValueError:
+        return False
+    return (
+        isinstance(detail, dict)
+        and detail.get("error") == "table_mutation_conflict"
+        and detail.get("retryable") is True
+    )
+
+
 class Antfly:
-    def __init__(self, url, password, *, model_url="http://models:8090"):
+    def __init__(
+        self,
+        url,
+        password,
+        *,
+        model_url="http://models:8090",
+        reader_auth="api_key",
+        index_creations=None,
+    ):
+        if reader_auth not in ("basic", "api_key"):
+            raise ValueError("unknown Antfly reader authentication")
         self.model_url = model_url
         self.url = url
-        self.password = password
+        self.index_creations = [] if index_creations is None else index_creations
+        self.reader_headers = {}
         self.headers = {
             "Authorization": "Basic "
             + base64.b64encode(("admin:" + password).encode()).decode()
@@ -50,33 +79,62 @@ class Antfly:
                 method="PUT",
             )
 
-    def api(self, path, body=None, method=None, tenant=None):
-        headers = self.headers
-        if tenant:
-            headers = {
-                "Authorization": "Basic "
-                + base64.b64encode(
-                    (tenant + ":" + reader_password(self.password, tenant)).encode()
-                ).decode()
+            if reader_auth == "api_key":
+                key = self.api(
+                    "/auth/v1/users/" + tenant + "/api-keys",
+                    {"name": "document-reader"},
+                    method="POST",
+                )
+                scheme = "ApiKey"
+                credential = key["key_id"] + ":" + key["key_secret"]
+            else:
+                scheme = "Basic"
+                credential = tenant + ":" + reader_password(password, tenant)
+            self.reader_headers[tenant] = {
+                "Authorization": scheme
+                + " "
+                + base64.b64encode(credential.encode()).decode()
             }
+
+    def api(self, path, body=None, method=None, tenant=None):
+        headers = self.headers if tenant is None else self.reader_headers[tenant]
         return request(self.url + path, body, method=method, headers=headers)
 
     def generation(self, name, model=EMBEDDER):
-        self.api(
-            "/db/v1/tables/documents/indexes/" + name,
-            {
-                "type": "embeddings",
-                "dimension": 384,
-                "field": "body",
-                "distance_metric": "cosine",
-                "publication_policy": "atomic",
-                "embedder": {
-                    "provider": "antfly",
-                    "model": model,
-                    "api_url": self.model_url,
-                },
+        path = "/db/v1/tables/documents/indexes/" + name
+        body = {
+            "type": "embeddings",
+            "dimension": 384,
+            "field": "body",
+            "distance_metric": "cosine",
+            "publication_policy": "atomic",
+            "embedder": {
+                "provider": "antfly",
+                "model": model,
+                "api_url": self.model_url,
             },
-        )
+        }
+        record = {"index": name, "retries": 0, "backoff_seconds": 0.0}
+        self.index_creations.append(record)
+        deadline = time.monotonic() + 10.0
+        delay = 0.05
+        while True:
+            try:
+                self.api(path, body)
+                return
+            except HTTPFailure as error:
+                if not retryable_index_conflict(error):
+                    raise
+                start = time.monotonic()
+                if start >= deadline:
+                    raise
+                time.sleep(min(delay, deadline - start))
+                now = time.monotonic()
+                record["backoff_seconds"] += now - start
+                if now >= deadline:
+                    raise
+                record["retries"] += 1
+                delay = min(2 * delay, 0.25)
 
     def write(self, identity, row, sync="write"):
         return self.api(

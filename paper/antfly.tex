@@ -437,34 +437,14 @@ report the write acknowledgement level, searchable coverage, query
 availability and latency. We evaluated Antfly v0.3. The artifact records exact
 engine versions and build identifiers for the trials~\cite{antfly-paper-repo}.
 
-\begin{table}[t]
-  \caption{Paired backfill trials. Each system added 1,024 vectors while
-  serving two queries/s for 60 seconds. Query latency includes queueing
-  from scheduled arrival.}
-  \centering\small
-  \begin{tabular}{@{}crrrr@{}}
-  \toprule
-  & \multicolumn{2}{c}{Backfill (s)} & \multicolumn{2}{c}{Query p95 (ms)}\\
-  Trial & Antfly & Postgres & Antfly & Postgres \\
-  \midrule
-1 & 25.99 & 11.92 & 399 & 343 \\
-2 & 25.79 & 13.54 & 467 & 425 \\
-3 & 25.74 & 12.69 & 485 & 379 \\
-  \bottomrule
-  \end{tabular}
-\end{table}
-
 \paragraph{Correction during backfill.}
 In a five-row fixture we held real B
 embedding work, corrected a source and moved it to a different tenant.
-Both databases continued serving A to its authorized reader before the
+Antfly and the PostgreSQL outbox continued serving A to its authorized reader before the
 correction and excluded the source from its old tenant after acknowledgement.
 The corrected B sentinel passed independent vector probes before cutover.
-In three paired trials at two offered queries/s,
-Antfly and the PostgreSQL outbox both completed 1,024 384-dimensional vectors.
-Median completion times were 25.79 and 12.69 seconds, respectively. Median
-during-backfill trial p95s were 467 and 379 ms. Both used the same isolated
-model service configuration. These timings cover the controlled fixture.
+The artifact reports timings for a separate 1,024-record controlled
+backfill~\cite{antfly-paper-repo}.
 
 \paragraph{Remote archive.}
 An authored scanned ledger and a born-digital appendix support the same

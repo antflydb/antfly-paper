@@ -1,21 +1,124 @@
 """Negative controls for the measurement boundary, independent of real models."""
 
+import base64
 import concurrent.futures
+import io
 import json
 import os
 import threading
 import time
 import unittest
+import urllib.error
 import urllib.request
+from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
 import gateway
-from common import request
+from adapters import Antfly
+from common import HTTPFailure, request
 from traffic import drive, summarize
 
 
 class ApplicationControls(unittest.TestCase):
+    def test_api_key_queries_use_the_requested_readers_key(self):
+        def response(url, _body, **kwargs):
+            if url.endswith("/api-keys"):
+                owner = url.split("/")[-2]
+                self.assertTrue(kwargs["headers"]["Authorization"].startswith("Basic "))
+                return {"key_id": owner, "key_secret": "test-secret"}
+            return {}
+
+        with patch("adapters.request", side_effect=response) as call:
+            app = Antfly("http://fixture", "bootstrap")
+            for tenant in ("alpha", "beta"):
+                app.api("/echo", tenant=tenant)
+                scheme, credential = call.call_args.kwargs["headers"][
+                    "Authorization"
+                ].split()
+                self.assertEqual(scheme, "ApiKey")
+                self.assertEqual(
+                    base64.b64decode(credential).decode(), tenant + ":test-secret"
+                )
+            before = call.call_count
+            with self.assertRaises(KeyError):
+                app.api("/echo", tenant="unknown")
+            self.assertEqual(call.call_count, before)
+
+    def index_error(self, status=409, body=None, outcome=None):
+        headers = Message()
+        if outcome is not None:
+            headers["x-antfly-raft-mutation-outcome"] = outcome
+        if body is None:
+            body = b'{"error":"table_mutation_conflict","retryable":true}'
+        return urllib.error.HTTPError(
+            "http://fixture/db/v1/tables/documents/indexes/b1",
+            status,
+            "index error",
+            headers,
+            io.BytesIO(body),
+        )
+
+    def test_index_creation_retries_same_request_and_records_backoff(self):
+        with patch("adapters.request"):
+            app = Antfly("http://fixture", "bootstrap", reader_auth="basic")
+        replies = [self.index_error(), self.index_error(), io.BytesIO(b"{}")]
+        with (
+            patch("urllib.request.urlopen", side_effect=replies) as send,
+            patch("adapters.time.monotonic", side_effect=[0, 1, 1.05, 2, 2.10]),
+            patch("adapters.time.sleep") as sleep,
+        ):
+            app.generation("b1")
+        requests = [call.args[0] for call in send.call_args_list]
+        self.assertEqual(len(requests), 3)
+        self.assertEqual(len({(req.full_url, req.data) for req in requests}), 1)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [0.05, 0.10])
+        self.assertEqual(app.index_creations[-1]["retries"], 2)
+        self.assertAlmostEqual(app.index_creations[-1]["backoff_seconds"], 0.15)
+
+    def test_index_creation_propagates_other_errors_without_retry(self):
+        with patch("adapters.request"):
+            app = Antfly("http://fixture", "bootstrap", reader_auth="basic")
+        for error in (
+            self.index_error(outcome="unknown-v1"),
+            self.index_error(status=503),
+            self.index_error(
+                body=b'{"error":"table_mutation_conflict","retryable":false}'
+            ),
+            self.index_error(
+                body=b'{"error":"metadata_mutation_outcome_unknown","retryable":true}'
+            ),
+            self.index_error(body=b"invalid json"),
+            OSError("connection lost"),
+        ):
+            with (
+                self.subTest(error=error),
+                patch("urllib.request.urlopen", side_effect=error) as send,
+            ):
+                with self.assertRaises(OSError):
+                    app.generation("b1")
+                send.assert_called_once()
+                self.assertEqual(app.index_creations[-1]["retries"], 0)
+
+    def test_index_conflict_deadline_records_incomplete_initial_creation(self):
+        # The runner retains this list even if the constructor cannot finish.
+        records = []
+        with (
+            patch(
+                "urllib.request.urlopen",
+                side_effect=[io.BytesIO(b"{}"), self.index_error()],
+            ) as send,
+            patch("adapters.time.monotonic", side_effect=[0, 9.98, 10.0]),
+            patch("adapters.time.sleep") as sleep,
+            self.assertRaises(HTTPFailure),
+        ):
+            Antfly("http://fixture", "bootstrap", index_creations=records)
+        self.assertEqual(send.call_count, 2)
+        self.assertAlmostEqual(sleep.call_args.args[0], 0.02)
+        self.assertEqual(records[0]["index"], "a0")
+        self.assertEqual(records[0]["retries"], 0)
+        self.assertAlmostEqual(records[0]["backoff_seconds"], 0.02)
+
     def test_scoped_discovery_and_capability_lease_survive_gateway(self):
         seen = []
 

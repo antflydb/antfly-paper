@@ -35,6 +35,8 @@ runtime.LABEL = "antfly-paper.application=" + APPLICATION_PROTOCOL
 def run(args):
     if not 1 <= args.copies <= 1024:
         raise ValueError("copies must be in 1..1024")
+    if args.engine != "antfly" and args.antfly_reader_auth not in (None, "basic"):
+        raise ValueError("--antfly-reader-auth applies only to Antfly")
     out = args.out.resolve()
     owned = runtime.Owned(out)
     out.mkdir(parents=True, exist_ok=False)
@@ -48,9 +50,14 @@ def run(args):
     ]
     source = {str(p.relative_to(ROOT)): runtime.sha(p) for p in instrument_paths}
     checks = []
+    index_creations = []
     phases = []
     success = False
     phase = "setup"
+
+    reader_auth = "basic"
+    if args.engine == "antfly":
+        reader_auth = args.antfly_reader_auth or "api_key"
 
     def check(name, passed, **details):
         row = {"name": name, "passed": bool(passed), **details}
@@ -284,7 +291,12 @@ def run(args):
 
             wait(ant_ready)
             validation_begin = len(audit())
-            app = Antfly(url, owned.password)
+            app = Antfly(
+                url,
+                owned.password,
+                reader_auth=reader_auth,
+                index_creations=index_creations,
+            )
             # No source rows exist yet: these successful embedding calls are
             # admission probes, learned from the subject rather than its text.
             validation_inputs = {
@@ -721,6 +733,12 @@ def run(args):
                     "fresh_pdf_frontend": not bool(args.extracted),
                     "privacy_before_write": args.privacy_before_write,
                     "initial_sync": args.initial_sync,
+                    "reader_auth": reader_auth,
+                    **(
+                        {"index_creations": index_creations}
+                        if args.engine == "antfly"
+                        else {}
+                    ),
                     "checks": checks,
                     "phases": phases,
                     "source_hashes": source,
@@ -780,6 +798,7 @@ def run(args):
                         "diagnostic_extraction_reuse": bool(args.extracted),
                         "privacy_before_write": args.privacy_before_write,
                         "initial_sync": args.initial_sync,
+                        "reader_auth": reader_auth,
                         "postgres_worker_batch": 32 if runtime.CANDIDATE else 1,
                     },
                 },
@@ -818,6 +837,11 @@ if __name__ == "__main__":
         help="diagnostic reuse of previously extracted controlled fixture; not a fresh end-to-end lifecycle",
     )
     p.add_argument("--performance", action="store_true")
+    p.add_argument(
+        "--antfly-reader-auth",
+        choices=["basic", "api_key"],
+        help="Antfly tenant read credentials (default: api_key); administration uses the bootstrap login",
+    )
     p.add_argument("--initial-sync", choices=["write", "full_index"], default="write")
     p.add_argument(
         "--privacy-before-write",

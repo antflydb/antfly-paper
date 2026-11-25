@@ -135,6 +135,22 @@ Only after correctness qualification, add:
 --performance --copies 128 --duration 60 --rate 2
 ```
 
+Antfly serving measurements use a separate API key for each tenant's read-only
+account. The runner installs the row filter before issuing the key. All tenant
+reads use the key, including the checks after restart and tenant reassignment.
+Source writes, setup and readiness polling use the bootstrap login. Results
+and provenance record the reader credential. The [v0.3.3 serving
+measurements](../archive/observations/document-reader-auth-v033.md) include
+per-arrival data and reproduction commands.
+
+Antfly index creation retries HTTP 409 only when the server identifies a
+retryable `table_mutation_conflict` and supplies no mutation-outcome header.
+Backoff starts at 50 ms and doubles up to 250 ms, with a ten-second budget
+for issuing retries. Each Antfly result records the retry count and elapsed
+backoff per index, including partial runs. Backfill completion time starts
+before the first create request and includes retries and waits. The serving
+window starts after the create request succeeds.
+
 This creates 1,024 controlled page records, **not 1,024 independent natural
 documents**. Retire old generations before measurement. Serve A alone, then
 serve A while building B. Query embedding is included in end-to-end timing.
