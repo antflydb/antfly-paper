@@ -50,6 +50,7 @@ def run(args):
     ]
     source = {str(p.relative_to(ROOT)): runtime.sha(p) for p in instrument_paths}
     checks = []
+    index_creations = []
     phases = []
     success = False
     phase = "setup"
@@ -290,7 +291,12 @@ def run(args):
 
             wait(ant_ready)
             validation_begin = len(audit())
-            app = Antfly(url, owned.password, reader_auth=reader_auth)
+            app = Antfly(
+                url,
+                owned.password,
+                reader_auth=reader_auth,
+                index_creations=index_creations,
+            )
             # No source rows exist yet: these successful embedding calls are
             # admission probes, learned from the subject rather than its text.
             validation_inputs = {
@@ -728,6 +734,11 @@ def run(args):
                     "privacy_before_write": args.privacy_before_write,
                     "initial_sync": args.initial_sync,
                     "reader_auth": reader_auth,
+                    **(
+                        {"index_creations": index_creations}
+                        if args.engine == "antfly"
+                        else {}
+                    ),
                     "checks": checks,
                     "phases": phases,
                     "source_hashes": source,

@@ -143,6 +143,14 @@ and provenance record the reader credential. The [v0.3.3 serving
 measurements](../archive/observations/document-reader-auth-v033.md) include
 per-arrival data and reproduction commands.
 
+Antfly index creation retries HTTP 409 only when the server identifies a
+retryable `table_mutation_conflict` and supplies no mutation-outcome header.
+Backoff starts at 50 ms and doubles up to 250 ms, with a ten-second budget
+for issuing retries. Each Antfly result records the retry count and elapsed
+backoff per index, including partial runs. Backfill completion time starts
+before the first create request and includes retries and waits. The serving
+window starts after the create request succeeds.
+
 This creates 1,024 controlled page records, **not 1,024 independent natural
 documents**. Retire old generations before measurement. Serve A alone, then
 serve A while building B. Query embedding is included in end-to-end timing.
