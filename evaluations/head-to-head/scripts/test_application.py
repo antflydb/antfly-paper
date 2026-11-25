@@ -27,7 +27,7 @@ class ApplicationControls(unittest.TestCase):
             return {}
 
         with patch("adapters.request", side_effect=response) as call:
-            app = Antfly("http://fixture", "bootstrap", reader_auth="api_key")
+            app = Antfly("http://fixture", "bootstrap")
             for tenant in ("alpha", "beta"):
                 app.api("/echo", tenant=tenant)
                 scheme, credential = call.call_args.kwargs["headers"][

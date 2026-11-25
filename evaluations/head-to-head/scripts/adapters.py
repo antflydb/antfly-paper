@@ -21,7 +21,7 @@ def wait(predicate, seconds=180):
 
 class Antfly:
     def __init__(
-        self, url, password, *, model_url="http://models:8090", reader_auth="basic"
+        self, url, password, *, model_url="http://models:8090", reader_auth="api_key"
     ):
         if reader_auth not in ("basic", "api_key"):
             raise ValueError("unknown Antfly reader authentication")

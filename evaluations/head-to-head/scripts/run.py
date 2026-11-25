@@ -35,7 +35,7 @@ runtime.LABEL = "antfly-paper.application=" + APPLICATION_PROTOCOL
 def run(args):
     if not 1 <= args.copies <= 1024:
         raise ValueError("copies must be in 1..1024")
-    if args.engine != "antfly" and args.antfly_reader_auth != "basic":
+    if args.engine != "antfly" and args.antfly_reader_auth not in (None, "basic"):
         raise ValueError("--antfly-reader-auth applies only to Antfly")
     out = args.out.resolve()
     owned = runtime.Owned(out)
@@ -54,7 +54,9 @@ def run(args):
     success = False
     phase = "setup"
 
-    reader_auth = args.antfly_reader_auth if args.engine == "antfly" else "basic"
+    reader_auth = "basic"
+    if args.engine == "antfly":
+        reader_auth = args.antfly_reader_auth or "api_key"
 
     def check(name, passed, **details):
         row = {"name": name, "passed": bool(passed), **details}
@@ -288,7 +290,7 @@ def run(args):
 
             wait(ant_ready)
             validation_begin = len(audit())
-            app = Antfly(url, owned.password, reader_auth=args.antfly_reader_auth)
+            app = Antfly(url, owned.password, reader_auth=reader_auth)
             # No source rows exist yet: these successful embedding calls are
             # admission probes, learned from the subject rather than its text.
             validation_inputs = {
@@ -827,8 +829,7 @@ if __name__ == "__main__":
     p.add_argument(
         "--antfly-reader-auth",
         choices=["basic", "api_key"],
-        default="basic",
-        help="credentials for tenant reads; administration uses the bootstrap login",
+        help="Antfly tenant read credentials (default: api_key); administration uses the bootstrap login",
     )
     p.add_argument("--initial-sync", choices=["write", "full_index"], default="write")
     p.add_argument(
