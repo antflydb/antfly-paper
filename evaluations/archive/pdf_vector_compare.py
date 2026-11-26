@@ -41,7 +41,7 @@ def embed_batch(endpoint, inputs, task, identity=None):
 CHUNK_POLICY = {"target_tokens": 160, "overlap_tokens": 0}
 
 
-def passage_vectors(endpoint, body, identity):
+def passage_vectors(endpoint, body, identity, *, execute=True):
     """Yield contiguous source-ordered passages embedded by the boundary model."""
     if not body.strip():
         return
@@ -57,6 +57,8 @@ def passage_vectors(endpoint, body, identity):
         "config": {"max_chunks": 32},
         "include_content": True,
     }
+    if not execute:
+        request["embedding"]["execute"] = False
     start = 0
     plan = None
     seen = set()
@@ -80,13 +82,17 @@ def passage_vectors(endpoint, body, identity):
             )
         plan = result["plan_id"]
         for ordinal, item in enumerate(items, start):
-            vector = item["embedding"]
+            vector = item["embedding"] if execute else None
             if (
                 item["descriptor"]["ordinal"] != ordinal
                 or not item["text"]
                 or not 0 < item["descriptor"]["input_tokens"] <= 8192
-                or len(vector) != 768
-                or not all(math.isfinite(x) for x in vector)
+                or (
+                    execute
+                    and (
+                        len(vector) != 768 or not all(math.isfinite(x) for x in vector)
+                    )
+                )
             ):
                 raise ValueError("invalid model-aware passage")
             yield item["text"], vector

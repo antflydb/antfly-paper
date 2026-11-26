@@ -17,6 +17,145 @@ from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_helper_stops_before_primary_and_resumes_partial_import(self):
+        from pdf_archive_inputs import (
+            assist_has_room,
+            document_key,
+            import_assisted_pdf,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            primary = Path(directory) / "primary"
+            receipts = primary / "receipts"
+            receipts.mkdir(parents=True)
+            pdfs = [{"path": f"fixture-{i}.pdf"} for i in range(5)]
+            self.assertTrue(assist_has_room(primary, pdfs, 4))
+            (receipts / (document_key(pdfs[1]) + ".json")).touch()
+            self.assertTrue(assist_has_room(primary, pdfs, 4))
+            (receipts / (document_key(pdfs[0]) + ".json")).touch()
+            self.assertFalse(assist_has_room(primary, pdfs, 4))
+
+            staged = Path(directory) / "staged"
+            staged.mkdir()
+            files = {}
+            hashes = {}
+            for gen in ("a", "b"):
+                dest = primary / gen / "documents"
+                dest.mkdir(parents=True)
+                path = staged / f"{gen}.jsonl"
+                path.write_bytes(gen.encode())
+                files[gen] = path
+                hashes[gen] = hashlib.sha256(gen.encode()).hexdigest()
+            receipt = staged / "fixture.json"
+            receipt.write_text(json.dumps({"sha256": hashes}))
+            # Recover a prior interruption after moving only the first shard.
+            files["a"].rename(primary / "a/documents/a.jsonl")
+            files["b"].write_bytes(b"damaged")
+            with self.assertRaisesRegex(ValueError, "checksum"):
+                import_assisted_pdf(primary, files, receipt)
+            self.assertFalse((receipts / receipt.name).exists())
+            files["b"].write_bytes(b"b")
+            import_assisted_pdf(primary, files, receipt)
+            self.assertEqual(
+                json.loads((receipts / receipt.name).read_text())["sha256"], hashes
+            )
+            import_assisted_pdf(primary, files, receipt)
+
+    def test_two_helpers_hold_distinct_leases_and_reclaim_after_exit(self):
+        from contextlib import closing
+
+        from pdf_archive_inputs import assist_order
+
+        with tempfile.TemporaryDirectory() as directory:
+            primary = Path(directory)
+            (primary / "receipts").mkdir()
+            pdfs = [{"path": str(i)} for i in range(6)]
+            with closing(assist_order(primary, pdfs)) as first:
+                self.assertEqual(next(first), 5)
+                with closing(assist_order(primary, pdfs)) as second:
+                    self.assertEqual(next(second), 4)
+            with closing(assist_order(primary, pdfs)) as resumed:
+                self.assertEqual(next(resumed), 5)
+
+    def test_pdf_protocol_versions_and_frozen_corpus(self):
+        from evidence import is_pdf_migration
+
+        self.assertFalse(is_pdf_migration({"source": "publisher"}))
+        for version in (1, 2):
+            self.assertTrue(
+                is_pdf_migration(
+                    {"representations": f"pdf-images-to-passages-v{version}"}
+                )
+            )
+        with self.assertRaises(ValueError):
+            is_pdf_migration({"representations": "unrecognized"})
+
+    def test_scheduled_reads_and_public_summary(self):
+        import threading
+        import time
+        from types import SimpleNamespace
+
+        from compare import scheduled_reads
+        from document_study_report import traffic_summary
+
+        page = "private.pdf#page=1"
+        probe = {"id": "private-question", "a": [1]}
+        rows = scheduled_reads(
+            Mock(search=Mock(return_value=[("key", page)])),
+            [probe],
+            {probe["id"]: {"eligible": ["private.pdf"], "pages": [page]}},
+            SimpleNamespace(qps=100, depth=5, k=1),
+            "dense",
+            time.monotonic(),
+            threading.Event(),
+            3,
+            compact=True,
+        )
+        self.assertEqual([r["arrival"] for r in rows], [0, 0.01, 0.02])
+        self.assertTrue(
+            all(r["cited_page_returned"] and r["hit_count"] == 1 for r in rows)
+        )
+        summary = traffic_summary(
+            rows + [{"error": "load generator at concurrency limit"}], 5
+        )
+        self.assertEqual(
+            (
+                summary["completed"],
+                summary["returned_citation"],
+                summary["capacity_drops"],
+                summary["missed"],
+            ),
+            (3, 3, 1, 1),
+        )
+        self.assertNotIn("private", json.dumps(summary))
+
+    def test_sweep_balance_and_final_partial_batch(self):
+        import io
+
+        from compare import load
+        from write_batch_sweep import plan
+
+        order = plan()
+        self.assertEqual(
+            [p[1:] for p in order[:6]], [p[1:] for p in reversed(order[6:])]
+        )
+        self.assertEqual(len(set(p[1:] for p in order)), 6)
+        rows = [
+            {"id": str(i), "page": "p.pdf#page=1", "views": {}, "body": "x", "b": [1]}
+            for i in range(129)
+        ]
+        log = io.StringIO()
+        self.assertEqual(
+            load(
+                Mock(), None, "b", True, live_rows=rows, batch_size=128, batch_log=log
+            ),
+            129,
+        )
+        entries = [json.loads(s) for s in log.getvalue().splitlines()]
+        self.assertEqual(
+            [(e["first_row"], e["rows"]) for e in entries], [(0, 128), (128, 1)]
+        )
+
     def test_model_aware_passages_follow_cursor_and_reject_incomplete_coverage(self):
         from pdf_vector_compare import passage_vectors
 
@@ -208,6 +347,82 @@ class ArchiveTests(unittest.TestCase):
                 ),
                 (1, 20, 0),
             )
+
+    def test_offline_catalog_matches_http_fallback(self):
+        from pdf_archive_inputs import catalog_extract
+        from pdf_pipeline import extract
+        from publisher_replay import page_text
+
+        page = Mock()
+        catalog = sqlite3.connect(":memory:")
+        self.addCleanup(catalog.close)
+        catalog.execute("CREATE TABLE pages(sha,page,body, PRIMARY KEY(sha,page))")
+        catalog.executemany(
+            "INSERT INTO pages VALUES ('v',?,?)",
+            [(1, "  value\n"), (2, None), (3, "  ")],
+        )
+        for number, layer, mode in [
+            (1, "x " * 49, "publisher"),
+            (2, "", "publisher_missing"),
+            (3, "", "publisher"),
+            (4, " z" * 50, "native"),
+        ]:
+            with self.subTest(number=number):
+                page.get_textpage.return_value.get_text_range.return_value = layer
+                page.render.reset_mock()
+                counts = Counter()
+                direct = catalog_extract(page, number, catalog, "v", counts)
+                self.assertEqual(direct["extraction"], mode)
+                self.assertEqual(
+                    counts["publisher_catalog_lookups"], int(mode != "native")
+                )
+                page.render.assert_not_called()
+                image = page.render.return_value.to_pil.return_value
+                image.width, image.height = 8, 8
+                image.save.side_effect = lambda dest, fmt: dest.write(b"raster")
+                with patch(
+                    "common.request",
+                    side_effect=lambda *a, number=number, **kw: {
+                        "data": [{"text": page_text(catalog, "v", number) or ""}]
+                    },
+                ) as request:
+                    self.assertEqual(
+                        direct,
+                        extract(
+                            page,
+                            number,
+                            None,
+                            (),
+                            catalog,
+                            "v",
+                            Counter(),
+                            "http://reader",
+                        ),
+                    )
+                    self.assertEqual(request.call_count, int(mode != "native"))
+        page.get_textpage.return_value.get_text_range.return_value = ""
+        with self.assertRaisesRegex(ValueError, "unknown source"):
+            catalog_extract(page, 1, catalog, "wrong", Counter())
+
+    def test_replay_transport_upgrade_preserves_source_identity(self):
+        from pdf_archive_inputs import bind_replay
+
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            spec = {"reader": "publisher", "acquisition_sha256": "a"}
+            marker = out / "identity.json"
+            marker.write_text(
+                json.dumps(spec | {"replay_transport": "source-page-png-v1"})
+            )
+            bind_replay(out, spec)
+            self.assertEqual(json.loads(marker.read_text()), spec)
+            for changed in (
+                spec | {"acquisition_sha256": "b"},
+                spec | {"replay_transport": "unknown"},
+            ):
+                marker.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, "identity changed"):
+                    bind_replay(out, spec)
 
     def test_ocr_schedule_resume(self):
         inventory = [{"path": name} for name in ("a.pdf", "b.pdf")]

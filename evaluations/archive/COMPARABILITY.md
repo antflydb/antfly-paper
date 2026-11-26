@@ -105,3 +105,22 @@ On Wolfspider’s internal SSD, a native trial per binary measured client latenc
 | Dense call, during B writes | 23.6 | 29.0 |
 
 Two preliminary trials on an external database volume stopped at the client concurrency limit and at a retryable B write rejection, respectively. The paired native-SSD trials used the same 65,536-descriptor limit, recorded missed arrivals and honored retryable write backpressure. Neither final trial missed an arrival or retried a batch. Fixed release-first order and one trial per binary limit run-to-run inference.
+
+## Full PDF deployment comparison
+
+The primary pair is native Antfly and an application-managed PostgreSQL/pgvector deployment with row-level security. Both start with the same versioned PDFs and use EmbeddingGemma 2 for page-image A and text-passage B, the same query vectors, token target and publisher-replay fallback. The image index serves dense queries. The passage index supports lexical, dense and hybrid queries. Each database enforces tenant scope. This measures the two deployments as built. Database internals, transport, producer placement and batching can all contribute to a timing difference.
+
+Both clients run one complete serving-only cycle over the evolved queries, then cycle through them at two scheduled arrivals per second during replacement, with eight in-flight slots. Latency starts at scheduled arrival and includes dispatch delay. Coverage and a scoped B query gate cutover. The controller stops offering A reads and drains outstanding reads before switching. Thus a passing trial demonstrates continued A service during the build and successful B service after the switch. The report records completed, missed, dropped, empty and ineligible reads, cited-page returns, and successful-read p95. Earlier native closed-loop traffic has a separate receipt and cannot supply the paired p95. Use a fresh output cohort for this schedule.
+
+The application-managed Antfly arm remains available for a producer-placement control. OpenSearch, Vespa and LanceDB give separate evidence about retrieval and access enforcement. The PostgreSQL full-corpus reference is a batch producer. The smaller transactional outbox experiment provides the crash/replay evidence.
+
+### Write-path diagnostic
+
+Run the following on an exclusive host with the checkpointed, frozen encoder-migration archive and the pinned native Antfly and LanceDB installations.
+
+```sh
+python evaluations/archive/write_batch_sweep.py --binary "$ANTFLY" --corpus "$FROZEN" \
+  --workload "$WORKLOAD" --state "$DB_VOLUME/sweep" --out "$RESULTS/write-batches"
+```
+
+The first pass alternates Antfly and LanceDB at 128, 512 and 2,048 B rows per call. The second reverses the entire order. Each trial starts from a fresh database, serves A during B writes and checks 616,832 searchable rows plus the B read probe. Per-batch receipts separate Antfly client encoding from HTTP dispatch through decoded committed acknowledgement. The latter includes transport and database time. LanceDB records row projection and its embedded add call, including Arrow conversion. Serving latency and post-ack readiness accompany the batch receipts. Raw timings stay in the artifact.

@@ -14,6 +14,8 @@ The [comparability audit](COMPARABILITY.md) covers all five evolved A indexes, a
 | Physical rows searchable in B | 616,832 | 616,832 |
 | B model batches | 7,866 | 7,866 |
 | Wall time inside B embedding calls | 89.77 min | 91.97 min |
+| Outside model calls through the last B write acknowledgement | 7.86 min | 2.09 min |
+| Last write acknowledgement to verified B readiness | 1.10 s | 10.43 s |
 | Last B write acknowledged | 97.63 min | 94.05 min |
 | B row counts complete and first two-channel probe passed | 97.65 min | 94.23 min |
 | Client switch plus first verified B read | 221 ms | 64 ms |
@@ -23,6 +25,8 @@ The [comparability audit](COMPARABILITY.md) covers all five evolved A indexes, a
 | A p95 during migration | 455 ms | 825 ms |
 
 Both engines consumed the same publisher-text corpus and the same frozen query vectors. The worker re-embedded each distinct chunk once with the replacement BGE encoder, checked its direction against the prepared vector and wrote public and tenant copies. Model time measures client wall time inside embedding calls, including the round trip. Antfly acknowledged B batches at the write barrier, then checked full-text and vector coverage. LanceDB finalized its indexes and checked the row count. Each adapter issued the same eligible lexical and dense probe before cutover. The duration of the build determined how many A arrivals were scheduled. [Runner and reproduction instructions](README.md#run-one-comparison)
+
+Antfly reached readiness 205.5 s later than LanceDB. Its model calls took 131.6 s less, but it spent 346.4 s more outside those calls before the last write acknowledgement. It then reached verified readiness 9.3 s sooner. The before-acknowledgement interval includes preparing and serializing rows, making insert calls and waiting for acknowledgements. The historical receipts combine those costs. The loader used 128-row Antfly batches and 2,048-row LanceDB batches. A separate frozen-vector control on 616,832 rows recorded 402.78 s inside Antfly write calls versus 219.89 s for OpenSearch with document-level security, both with four CPUs and 4 GiB. Write-call time accounted for 182.89 s of that pair's 192.04 s difference to readiness. Only the first Antfly policy trial completed. These observations identify the write path for profiling. An attribution to batch size or a specific storage subsystem requires a matched sweep with per-batch timing. [Full-corpus control receipts](observations/officeqa-matched-followups.md) · [Loader and batch sizes](compare.py)
 
 ![Acknowledged B rows and A query latency during migration](observations/officeqa-native-migration.png)
 
@@ -72,7 +76,23 @@ In a separate v0.3.1 check, one standalone Antfly instance took three PDF URLs a
 
 ### Page-image to text-chunk migration
 
-The v0.3.3 replay uses the packaged Darwin arm64 binary from source commit `2d456b7cecc05906b96038fa52859f03472967ad`. A synthetic pagination check returned all 208 passages from one long page, each with a 768-dimensional EmbeddingGemma 2 vector. On November 24, 2026 the full-corpus replay was preparing the inputs for five application-managed trials and the separate Antfly-native PDF trial. Full-corpus results for this migration are pending. [Binary checksums and protocol](README.md#publisher-replay-and-measured-raw-pdf-sample)
+#### Application code and service counts on the full PDF workload
+
+The full representation experiment starts with the same 1,435 versioned PDFs and 118,524 physical pages in each arm. Multiple tenant views produce 3,579 source rows and a target of 290,936 A vectors. The table counts the pipeline used during the timed builds. The reference-vector preparation job and the traffic generator are measurement infrastructure.
+
+| Responsibility | Native Antfly | Application-managed arms |
+|---|---|---|
+| Fetch, render, extract, chunk and embed PDFs | Antfly runs the producers described by two named indexes and two enrichment definitions. Application code submits versioned URLs, sets up the indexes and readers, checks coverage and requests the alias switch. | One shared Python producer runs inside the client for all five engines. Its outer module has 119 physical lines containing code. It fetches each PDF, renders and embeds pages for A, and extracts and embeds passages for B. Imported model, chunking and HTTP helpers and each engine's adapter are additional code. |
+| Separately deployed endpoints in the timed replay | 3: Antfly standalone, the versioned object server and the replay reader. Antfly hosts embedding inference. | 4 for PostgreSQL, OpenSearch, Vespa and the application-managed Antfly arm: the database, object server, replay reader and embedding service. Embedded LanceDB uses the last three, with its database in the client process. |
+| Routing after B reaches coverage | The client updates a database alias guarded by coverage. | The client changes the table and query representation it selects. |
+
+The primary deployment comparison is native Antfly versus PostgreSQL/pgvector. Both require tenant setup, ingestion, a readiness decision, cutover and a query client. In PostgreSQL the application owns object-version checks, transformation calls, model-identity checks, tenant fan-out and the routing decision. Native Antfly takes versioned source references and declares both producers and the expected index for the alias update. Each implementation checks the returned physical page against the same tenant judgments. The operator provisions the database, object source and replay reader for both, plus a model endpoint for PostgreSQL. The benchmark records deployment roles and executed code paths. It does not measure human time.
+
+Run `python3 evaluations/archive/pdf_code_inventory.py` from the repository root for token-bearing source lines, by deployment and responsibility. The inventory includes the 119-line application PDF producer, imported transformation helpers, database adapters, and the mixed client/instrumentation drivers on both sides. It lists shared services and measurement code separately. Whole-driver counts include branches used by other subjects. They cannot be summed into a measure of backend effort. The two native enrichment declarations are JSON, and both native index declarations are built by one Python function. [Source census](pdf_code_inventory.py) · [Paired protocol and write diagnostic](COMPARABILITY.md#full-pdf-deployment-comparison)
+
+The original live producer module had SHA-256 `5ea8b5c7f73a5b76ebcf17fc69314cc7ca99e5a0e0dc7aa9e5016f6fba2676b2`. [Application producer](pdf_pipeline.py) · [Native index and alias operations](pdf_native_archive.py) · [Enrichment configuration](lighton-enrichments.json) · [Service startup](document_study.py) · [Engine deployments](pdf_archive_campaign.py)
+
+The v0.3.3 replay uses the packaged Darwin arm64 binary from source commit `2d456b7cecc05906b96038fa52859f03472967ad`. A synthetic pagination check returned all 208 passages from one long page, each with a 768-dimensional EmbeddingGemma 2 vector. At 09:11 PST on November 25, generation A of the native full-corpus trial had 257,516 searchable vectors against a target of 290,936. It reported 3,512 covered tenant-visible source rows out of 3,579, with 67 pending and zero failed. The application-side preparation retained 1,240 PDF checkpoints after a broken pipe. Its retry was queued behind the native trial on the exclusive host. End-to-end results for this migration are pending. [Binary checksums and protocol](README.md#publisher-replay-and-measured-raw-pdf-sample)
 
 The November 22 protocol uses publisher-text replay for the full 118,524-page representation migration. The versioned page catalog contains 115,458 mapped pages and 3,066 explicit missing-text entries. Generation A retains every physical page and the original citation judgments include missing-text pages. The full trial times retrieval of remote PDFs, indexing, serving during replacement, and cutover using native PDF text where available and publisher replay on OCR fallback for generation B. Its timing includes fallback page rendering, upload and replay lookup. In the v0.3.2 qualification a three-page PDF was served to two tenant-visible source rows. Antfly issued two mapped and two missing-page replay requests, recorded zero OCR failures, and returned physical page 1 for a search term supplied only by the replay provider. [Qualification receipt](observations/publisher-replay-v032.json) [Reproduction](README.md#publisher-replay-and-measured-raw-pdf-sample)
 

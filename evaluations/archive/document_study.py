@@ -10,6 +10,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from urllib.request import urlopen
 
+from native_documents import publish
 from pdf_archive_campaign import (
     archive_binary_digest,
     port,
@@ -42,37 +43,53 @@ def ready(proc, predicate):
     raise RuntimeError("service failed readiness")
 
 
+def model_service_command(binary, models_dir, endpoint, out):
+    config = out / "model-transport.json"
+    publish(config, {"inference": {"http_max_body_mb": 64}})
+    return [
+        binary,
+        "inference",
+        "run",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(endpoint),
+        "--config",
+        config,
+        "--scratch-budget-mb",
+        "16384",
+        "--models-dir",
+        models_dir,
+    ]
+
+
 def run(a):
+    if a.embedding_cache and a.stage != "prepare":
+        raise ValueError("--embedding-cache applies only to offline preparation")
     digest = archive_binary_digest(a.binary)
     native = a.stage == "native"
-    plan = a.out / ("native-plan" if native else "inputs")
+    plan = a.prepared_inputs or a.out / ("native-plan" if native else "inputs")
     workload = a.sample_workload or a.workload
     replay = [] if a.sample_workload else ["--replay-catalog", a.catalog]
+    application_reader = []
     py = sys.executable
     prepared = plan / ("native-plan.json" if native else "manifest.json")
+    if a.prepared_inputs and (a.stage == "prepare" or not prepared.is_file()):
+        raise ValueError(
+            "--prepared-inputs requires a completed plan for matched or native"
+        )
     if prepared.exists():
         verify_representation_manifest(json.loads(prepared.read_text()), digest)
     with ExitStack() as stack:
         url = None
-        if not prepared.exists() or a.stage == "matched":
+        needs_preparation = not prepared.exists() or bool(a.embedding_cache)
+        if needs_preparation or a.stage == "matched":
             endpoint = port()
             url = f"http://127.0.0.1:{endpoint}"
             model = stack.enter_context(
                 service(
                     a.out / "models.log",
-                    [
-                        a.binary,
-                        "inference",
-                        "run",
-                        "--host",
-                        "127.0.0.1",
-                        "--port",
-                        str(endpoint),
-                        "--scratch-budget-mb",
-                        "16384",
-                        "--models-dir",
-                        a.models_dir,
-                    ],
+                    model_service_command(a.binary, a.models_dir, endpoint, a.out),
                 )
             )
 
@@ -82,7 +99,7 @@ def run(a):
 
             ready(model, model_ready)
             options = ["--native-plan"] if native else []
-            if not native and replay:
+            if a.stage == "matched" and replay:
                 rp = port()
                 remote = stack.enter_context(
                     service(
@@ -106,7 +123,7 @@ def run(a):
                         return response.status == 200
 
                 ready(remote, app_ready)
-                replay += ["--application-reader", app_url]
+                application_reader = ["--application-reader", app_url]
             if not native:
                 refs = a.out / "source-refs.json"
                 # Publish only after the freshly started server verifies the sources.
@@ -129,7 +146,7 @@ def run(a):
                 ready(source, fresh.exists)
                 fresh.replace(refs)
                 options += ["--refs", refs]
-            if not prepared.exists():
+            if needs_preparation:
                 subprocess.run(
                     [
                         py,
@@ -145,13 +162,17 @@ def run(a):
                         digest,
                         "--out",
                         plan,
+                        *(
+                            ["--embedding-cache", a.embedding_cache]
+                            if a.embedding_cache
+                            else []
+                        ),
                         *options,
                         *replay,
                     ],
                     check=True,
                 )
         if not native and a.sample_workload:
-            from native_documents import publish
             from ocr_cost import summarize
 
             publish(a.out / "cost-estimate.json", summarize(a.data, workload, plan))
@@ -186,7 +207,14 @@ def run(a):
                 *(
                     ["--native-plan", *replay]
                     if native
-                    else ["--pdf-models", url, "--pdf-refs", refs, *replay]
+                    else [
+                        "--pdf-models",
+                        url,
+                        "--pdf-refs",
+                        refs,
+                        *replay,
+                        *application_reader,
+                    ]
                 ),
             ],
             check=True,
@@ -198,6 +226,16 @@ if __name__ == "__main__":
     p.add_argument("stage", choices=["prepare", "native", "matched"])
     for key in ("data", "catalog", "workload", "state", "out", "models-dir", "binary"):
         p.add_argument("--" + key, type=Path, required=True)
+    p.add_argument(
+        "--prepared-inputs",
+        type=Path,
+        help="reuse a completed input directory with a fresh output cohort",
+    )
+    p.add_argument(
+        "--embedding-cache",
+        type=Path,
+        help="SQLite path for preparation across corpus revisions",
+    )
     p.add_argument("--sample-workload", type=Path)
     p.add_argument(
         "--engines",

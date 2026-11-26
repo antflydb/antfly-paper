@@ -398,7 +398,27 @@ as an embedded single file, a replicated server or a sharded cluster.
 \section{Evaluation}
 \label{sec:eval}
 
-\paragraph{From declarations to searchable pages.} The application submitted
+\paragraph{Who implements the lifecycle?} We built the same permissioned
+document application twice, with a shared PDF frontend and model service.
+The Antfly adapter declares a named embedding index for each model and a
+privacy policy. PostgreSQL with pgvector requires one additional application
+service in our implementation. On a model change it registers the new
+generation and enqueues existing rows. Its worker checks the source version
+and policy epoch before publishing. On a tenant change the application
+updates the source and the permissions on existing artifacts in one
+transaction. The worker can fail and restart independently of PostgreSQL.
+
+In the paired implementations, the Antfly adapter comprised 123 lines of
+Python and the PostgreSQL adapter 42, plus 309 for its outbox service.
+We counted physical lines containing code in the frozen trial sources,
+including declarations and embedded SQL. The shared frontend and model
+access accounted for another 125 lines on each side. We excluded benchmark
+code, including 109 lines of administrator inspection on Antfly.
+On both systems, committed artifacts survived restart without another
+model call, a held update converged after restart, and protected text
+passed the fixture's checks at the embedding and query boundaries~\cite{antfly-paper-repo}.
+
+\paragraph{PDF walkthrough.} The application submitted
 three PDF URLs to one Antfly instance. Its first declaration selects
 document extraction with automatic OCR fallback and pins the LightOnOCR
 reader. The second names the first declaration's output, sets a 160-token
@@ -416,26 +436,14 @@ encoder and index. A new query used B's pair. Deliberately pairing the
 wrong encoder with an index failed the independent vector check. The OfficeQA
 trials below measure continued service during a rebuild at corpus scale.
 
-\paragraph{Baselines.} The retrieval protocol compares PostgreSQL with
-pgvector (shared and partial HNSW under row-level security), ParadeDB native
-vectors and LanceDB Embedded with native prefiltering. LanceDB supports
-embedding functions and updates. In the lifecycle comparison, the
-PostgreSQL application coordinates a durable workflow and conditions
-publication on source versions. OpenSearch supplies semantic fields and
-ML Commons. Vespa supplies feed-time embedding, stored-data reindexing,
-progress signals and new-field cutovers. Table~\ref{tab:comparison}
-compares the individual mechanisms.
-
-\paragraph{Method.} The application is permissioned archive search. The
-artifact separates required services, deployment configuration and custom
-lifecycle code from benchmark instrumentation. Controlled providers let us
-hold an embedding response across a source correction or a model switch.
-The replay control changes the provider's answer on every call, commits one
-answer, disables the provider and restarts the database. It checks both the
-stored answer and the call count. Timing trials use pinned models and
-report the write acknowledgement level, searchable coverage, query
-availability and latency. We evaluated Antfly v0.3. The artifact records exact
-engine versions and build identifiers for the trials~\cite{antfly-paper-repo}.
+\paragraph{Method.} We evaluated Antfly v0.3. Controlled providers let us
+hold an embedding response across a source correction or model switch.
+A provider returned a different decision on each call. After its first
+decision committed, we disabled the provider and restarted Antfly. Antfly
+returned the recorded decision and the provider call count stayed at one.
+Timing trials used pinned models. The artifact records the engine builds,
+write acknowledgements and per-trial results~\cite{antfly-paper-repo}.
+Table~\ref{tab:comparison} compares the mechanisms available to applications.
 
 \paragraph{Correction during backfill.}
 In a five-row fixture we held real B
@@ -443,8 +451,8 @@ embedding work, corrected a source and moved it to a different tenant.
 Antfly and the PostgreSQL outbox continued serving A to its authorized reader before the
 correction and excluded the source from its old tenant after acknowledgement.
 The corrected B sentinel passed independent vector probes before cutover.
-The artifact reports timings for a separate 1,024-record controlled
-backfill~\cite{antfly-paper-repo}.
+The artifact reports all paired build and serving timings for a separate
+1,024-record controlled backfill~\cite{antfly-paper-repo}.
 
 \paragraph{Remote archive.}
 An authored scanned ledger and a born-digital appendix support the same
@@ -459,53 +467,86 @@ The public artifact includes the scanned source generator, annotations and
 per-reader observations~\cite{antfly-paper-repo}.
 
 \paragraph{Representative document workload.}
-The verified OfficeQA Pro v2 corpus~\cite{officeqa-v2} contains 1,435 PDFs, 118,524 physical pages
-and 90 questions with 823 distinct question--page citations. The protocol compares Antfly, PostgreSQL with pgvector, OpenSearch,
-Vespa, and LanceDB. A synthetic tenant overlay assigns visibility and typed
-metadata independently of the answer keys. Tenants use different metadata
-fields, and both add a typed field after ingestion. The comparison records
-the mappings, indexes, policy enforcement, and application changes each system
-requires. Antfly indexes tenant fields and enforces a database row policy.
-PostgreSQL uses JSONB, expression indexes and row-level security.
-OpenSearch extends a typed mapping, Vespa deploys a schema with a new
-attribute, and LanceDB adds a column. In these three archive adapters the
-trusted application supplies the tenant filter on each search. The artifact
-separately exercises OpenSearch document-level security.
+OfficeQA Pro v2~\cite{officeqa-v2} contains 1,435 PDFs, 118,524 physical
+pages and 90 questions with 823 distinct question--page citations.
+We assigned tenant visibility independently of the citations and added a
+typed field after ingestion. Antfly indexed the tenant fields and enforced
+a database row policy. PostgreSQL used JSONB, expression indexes and
+row-level security. OpenSearch extended a typed mapping, Vespa deployed a
+new attribute, and LanceDB added a column. For those three adapters the
+application supplied the tenant predicate.
 
-For the matched retrieval comparison, all systems receive the same text,
-chunks, and embeddings. We compare lexical, dense, and hybrid retrieval and
-measure recall over eligible evidence pages, the fraction of queries with
-all eligible evidence retrieved, and any ineligible results. The raw-PDF protocol uses the original questions, the same answer model and budget,
-and the upstream scorer. During model migration, the service continues to
-query generation A while B builds. We measure query tails, availability,
-completed vectors, and time to readiness, then check B with the matching
-query encoder before switching. Controlled fixtures separately establish
-the expected outcomes for crash, stale-response, and privacy tests.
-For the page-image to passage migration, the full-scale protocol replays
-publisher text by PDF version and physical page. Its catalog maps 115,458 of
-118,524 pages. All physical pages enter the visual index and all original
-citation judgments remain eligible for scoring in the public workload. The
-timed migration includes rendering and sending fallback pages, replay lookup,
-chunking and embedding. The artifact reports real OCR measurements separately
-on authored fixtures.
+All five engines received the same publisher text, chunks and query vectors.
+Each of 408 tenant/filter variants could return 20 distinct pages.
+Table~\ref{tab:officeqa-recall} gives hybrid retrieval results for the
+evolved schema on generation A. The last column requires every eligible
+cited page for a variant to appear in the first 20. PostgreSQL's full-question
+lexical parser returned no hits on 396 variants. Vespa returned no dense hits
+on 20. For Antfly and LanceDB, lexical-only recall was 19.72\% and 18.12\%,
+and dense-only recall was 15.64\% and 16.03\%. The paired hybrid recall
+difference, weighting each original question equally, was $+1.2$ percentage
+points (95\% bootstrap interval $[-1.0,+3.8]$).
 
-In the native macOS trials, a shared application-side BGE worker supplied
-both engines and the client controlled cutover. Antfly and LanceDB each re-embedded 251,707
-publisher-text chunks and built 616,832 searchable B rows. At two offered
-queries/s, all 11,719 and 11,308 scheduled A requests completed, respectively,
-with zero ineligible pages. B was ready in 97.7 and 94.2 minutes; A p95
-during the build was 455 and 825 ms (serving alone: 466 and 815 ms).
-After schema evolution, A hybrid page recall@20 was 22.8\% and 21.9\%.
-The paired difference weighted equally across the 90 original questions
-was $+1.2$ percentage points (95\% bootstrap interval $[-1.0,+3.8]$).
-The artifact reports per-channel recall and timing boundaries for each single trial.
+\begin{table}[t]
+  \caption{Eligible citation retrieval on OfficeQA Pro v2. All five adapters returned zero ineligible pages.}
+  \label{tab:officeqa-recall}
+  \centering\small
+  \begin{tabular}{@{}lrr@{}}
+  \toprule
+  Engine & Mean recall@20 & All citations@20 \\
+  \midrule
+  Antfly             & 22.76\% & 13.48\% \\
+  PostgreSQL/pgvector & 11.98\% &  6.37\% \\
+  OpenSearch         & 20.37\% & 14.71\% \\
+  Vespa              & 15.43\% &  9.31\% \\
+  LanceDB            & 21.88\% & 13.73\% \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Serving through encoder replacement.}
+A shared application-side BGE worker re-embedded 251,707 distinct chunks
+for each engine. The client switched generations after verifying searchable
+coverage and probing B with its matching encoder. In one native macOS trial
+per engine, Antfly and LanceDB each published 616,832 searchable B rows.
+At two arrivals/s their serving-only p95s were 466 and 815\,ms. During
+replacement they were 455 and 825\,ms. All 11,719 and 11,308 scheduled
+reads completed, respectively, with zero ineligible pages. The client
+issued lexical and dense requests in sequence and combined the results.
+In separate Linux VM trials on the same host, OpenSearch and Vespa reached
+the same B row count. PostgreSQL reached it in a follow-up that used a
+known-positive lexical readiness probe. The artifact reports the original
+probe failure, build durations and per-engine resource limits~\cite{antfly-paper-repo}.
+
+\paragraph{Changing the document representation.} On the shared-input
+PDF fixture, all five adapters retrieved the cited page from both image
+and text-chunk vectors, reflected a corrected scan, and hid a revoked
+appendix. In a separate native Antfly run, the database fetched the PDFs
+and produced both representations. All 112 tenant probes returned results
+during replacement.
+
+The full OfficeQA PDF protocol compares native Antfly with PostgreSQL/pgvector
+running an application-managed pipeline. Both start with versioned PDFs,
+serve tenant-scoped reads on page-image vectors, and switch to vectors over
+extracted text passages. In Antfly, two index definitions and two enrichment
+declarations specify the producers. In the PostgreSQL deployment, a 119-line
+Python module coordinates PDF fetch, rendering, extraction and passage
+embedding through shared helpers. Both deployments require ingestion and
+cutover code. Counting the object server and publisher-text replay reader,
+the native deployment uses three services. PostgreSQL uses four, including
+a separate embedding service. These counts describe the evaluated deployments.
+Full-corpus image-to-passage results, end-to-end answer accuracy and
+independently adjudicated real-page graph accuracy remain
+unreported~\cite{antfly-paper-repo}.
 
 \paragraph{Hybrid read latency.} A physical LSM maintenance turn could
 invalidate a parallel lexical and vector search and force a serial retry.
 Change \#1814 aligned maintenance scheduling with compaction eligibility
-and preserved the read revision across physical maintenance. On Wolfspider,
+and preserved the read revision across physical maintenance. On the same Apple M4 Max host (36 GiB),
 we compared the merge against its immediate parent using uninstrumented
-ReleaseFast builds. Each build served the same 408 tenant-filtered queries
+ReleaseFast builds. This client timed one native hybrid HTTP request from
+dispatch through response decoding. The encoder-replacement trial above
+timed two sequential requests and client fusion from scheduled arrival. Each build served the same 408 tenant-filtered queries
 twice per phase on fresh copies of the 616,832-row snapshot, reversing build
 order for the second pair. Serving-only HTTP p95 fell from 120.84 to
 93.94\,ms (22.3\%). With 22,528 writes to a separate table, it fell from

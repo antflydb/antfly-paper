@@ -9,11 +9,12 @@ import time
 import uuid
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from pathlib import Path
 
 from corpus import MIGRATION_EMBEDDER, archive_embed, chunk_rows
 from engines import Antfly, Lance, OpenSearch, Pg, Vespa
-from evidence import fuse, score_pages
+from evidence import fuse, is_pdf_migration, score_pages
 
 
 def observations(
@@ -46,6 +47,65 @@ def observations(
         ranks.append([key for key, _ in hits])
     chunks = fuse(ranks, depth * len(channels))
     return list(dict.fromkeys(pages[k] for k in chunks))[:limit]
+
+
+def scheduled_reads(
+    engine, probes, gold, args, mode, start, stop, limit=None, *, compact=False
+):
+    """Eight in-flight slots; each arrival is timed from its scheduled instant."""
+    eligible = {q["id"]: set(gold[q["id"]]["eligible"]) for q in probes}
+
+    def serve(i):
+        q = probes[i % len(probes)]
+        dispatched = time.monotonic() - start
+        stages = {}
+        row = dict(
+            arrival=i / args.qps,
+            dispatched=dispatched,
+            id=q["id"],
+            channel_seconds=stages,
+        )
+        try:
+            row["hits"] = observations(
+                engine, q, "a", mode, args.depth, args.k, eligible[q["id"]], stages
+            )
+            row["cited_page_returned"] = bool(
+                set(row["hits"]).intersection(gold[q["id"]]["pages"])
+            )
+            row["ineligible"] = score_pages(
+                {q["id"]: gold[q["id"]]}, {q["id"]: row["hits"]}, args.k
+            )["ineligible"]
+            if compact:
+                row["hit_count"] = len(row.pop("hits"))
+        except Exception as exc:
+            row["error"] = str(exc)
+        row["completed"] = time.monotonic() - start
+        row["latency"] = row["completed"] - row["arrival"]
+        return row
+
+    observed, pending = [], []
+    with ThreadPoolExecutor(max_workers=8) as workers:
+        i = 0
+        while limit is None or i < limit:
+            if stop.wait(max(0, start + i / args.qps - time.monotonic())):
+                break
+            for job in pending.copy():
+                if job.done():
+                    observed.append(job.result())
+                    pending.remove(job)
+            if len(pending) < 8:
+                pending.append(workers.submit(serve, i))
+            else:
+                observed.append(
+                    {
+                        "arrival": i / args.qps,
+                        "id": probes[i % len(probes)]["id"],
+                        "error": "load generator at concurrency limit",
+                    }
+                )
+            i += 1
+        observed.extend(job.result() for job in pending)
+    return sorted(observed, key=lambda row: row["arrival"])
 
 
 def migration_rows(path, models, metrics, replacement):
@@ -85,16 +145,26 @@ def load(
     progress=None,
     replacement=MIGRATION_EMBEDDER,
     live_rows=None,
+    batch_size=None,
+    batch_log=None,
 ):
     batch = []
     count = 0
-    batch_size = 2048 if isinstance(engine, Lance) else 128
+    batch_size = batch_size or (2048 if isinstance(engine, Lance) else 128)
 
     def write_batch(rows):
         start = time.monotonic()
-        engine.insert(rows)
+        if batch_log is None:
+            engine.insert(rows)
+        else:
+            timings = {"rows": len(rows), "first_row": count}
+            engine.insert(rows, timings=timings)
+        elapsed = time.monotonic() - start
+        if batch_log is not None:
+            timings["write_call_seconds"] = elapsed
+            batch_log.write(json.dumps(timings) + "\n")
         if metrics is not None:
-            metrics["write_call_seconds"] += time.monotonic() - start
+            metrics["write_call_seconds"] += elapsed
             metrics["write_batches"] += 1
 
     for chunk in (
@@ -229,11 +299,19 @@ def main():
         action="store_true",
         help="replay A with disjunctive English lexemes after timing",
     )
+    p.add_argument("--b-batch-size", type=int, choices=(128, 512, 2048))
     p.add_argument("--application-reader")
     p.add_argument("--pdf-models")
     p.add_argument("--pdf-refs", type=Path)
     p.add_argument("--replay-catalog", type=Path)
     args = p.parse_args()
+    if args.b_batch_size and (
+        args.engine not in ("antfly", "lance")
+        or args.pdf_models
+        or args.migration_models
+        or args.original_only
+    ):
+        p.error("batch sweep requires a frozen-vector Antfly or LanceDB build")
     if args.postgres_lexical_control and (
         args.engine != "postgres" or args.original_only
     ):
@@ -258,9 +336,12 @@ def main():
     }:
         raise ValueError("corpus queries and workload judgments disagree")
     args.out.mkdir(parents=True, exist_ok=False)
-    pdf_migration = manifest.get("representations") == "pdf-images-to-passages-v1"
+    pdf_migration = is_pdf_migration(manifest)
     if pdf_migration and (
-        args.migration_models or args.original_only or args.postgres_lexical_control
+        args.migration_models
+        or args.original_only
+        or args.postgres_lexical_control
+        or args.b_batch_size
     ):
         p.error(
             "the representation comparison uses two frozen inputs and a dense-only A"
@@ -370,56 +451,21 @@ def main():
             raise ValueError(f"chosen readiness probe already empty on A ({channel})")
     eligible = {q["id"]: set(gold[q["id"]]["eligible"]) for q in probes}
     stop = threading.Event()
-    start = time.monotonic()
 
-    def serve(i):
-        q = probes[i % len(probes)]
-        dispatched = time.monotonic() - start
-        stages = {}
-        row = dict(
-            arrival=i / args.qps,
-            dispatched=dispatched,
-            id=q["id"],
-            channel_seconds=stages,
+    def traffic(start, limit=None):
+        return scheduled_reads(
+            a,
+            probes,
+            gold,
+            args,
+            traffic_mode,
+            start,
+            stop,
+            limit,
+            compact=pdf_migration,
         )
-        try:
-            row["hits"] = observations(
-                a, q, "a", traffic_mode, args.depth, args.k, eligible[q["id"]], stages
-            )
-            row["ineligible"] = score_pages(
-                {q["id"]: gold[q["id"]]}, {q["id"]: row["hits"]}, args.k
-            )["ineligible"]
-        except Exception as exc:
-            row["error"] = str(exc)
-        row["completed"] = time.monotonic() - start
-        row["latency"] = row["completed"] - row["arrival"]
-        return row
 
-    def traffic(limit=None):
-        observed, pending = [], []
-        with ThreadPoolExecutor(max_workers=8) as workers:
-            i = 0
-            while limit is None or i < limit:
-                if stop.wait(max(0, start + i / args.qps - time.monotonic())):
-                    break
-                for job in pending.copy():
-                    if job.done():
-                        observed.append(job.result())
-                        pending.remove(job)
-                if len(pending) < 8:
-                    pending.append(workers.submit(serve, i))
-                else:
-                    observed.append(
-                        {
-                            "arrival": i / args.qps,
-                            "error": "load generator at concurrency limit",
-                        }
-                    )
-                i += 1
-            observed.extend(job.result() for job in pending)
-        return sorted(observed, key=lambda row: row["arrival"])
-
-    baseline = traffic(len(probes))
+    baseline = traffic(time.monotonic(), len(probes))
     start = time.monotonic()
     model_metrics = {
         "model_batches": 0,
@@ -430,26 +476,33 @@ def main():
     }
     progress = []
     with ThreadPoolExecutor(1) as pool:
-        future = pool.submit(traffic)
+        future = pool.submit(traffic, start)
         try:
             if isinstance(b, Antfly):
                 b.create(b_dim, evolved=True)
             else:
                 b.create(b_dim)
                 b.evolve()
-            completed = load(
-                b,
-                b_inputs,
-                "b",
-                True,
-                models=args.migration_models,
-                live_rows=source("b"),
-                metrics=model_metrics,
-                replacement=manifest.get("embedding_b", MIGRATION_EMBEDDER),
-                progress=lambda count: progress.append(
-                    [time.monotonic() - start, count]
-                ),
-            )
+            with (
+                (args.out / "b-batches.jsonl").open("x", buffering=1)
+                if args.b_batch_size
+                else nullcontext()
+            ) as batch_log:
+                completed = load(
+                    b,
+                    b_inputs,
+                    "b",
+                    True,
+                    models=args.migration_models,
+                    live_rows=source("b"),
+                    metrics=model_metrics,
+                    replacement=manifest.get("embedding_b", MIGRATION_EMBEDDER),
+                    batch_size=args.b_batch_size,
+                    batch_log=batch_log,
+                    progress=lambda count: progress.append(
+                        [time.monotonic() - start, count]
+                    ),
+                )
             expected_b = manifest["counts"]["b_rows"] if pdf_migration else count
             if completed != expected_b:
                 raise ValueError("B row acknowledgment count mismatch")
@@ -470,6 +523,7 @@ def main():
         finally:
             stop.set()
             observed = future.result()
+    observed = [row for row in observed if row["arrival"] < elapsed]
     switch = time.monotonic()
     active, encoder = b, "b"
     first_hits = observations(
@@ -505,6 +559,7 @@ def main():
         if args.engine == "antfly"
         else "adapter default",
         "baseline_traffic": baseline,
+        "traffic_protocol": "scheduled-a-reads-v2",
         "traffic_concurrency": 8,
         "traffic": observed,
         "acknowledged_rows_over_time": progress,
@@ -518,6 +573,9 @@ def main():
         )
         + "; controller selects generation",
     }
+    if args.b_batch_size:
+        receipt["b_batch_size"] = args.b_batch_size
+        receipt["after_last_ack_seconds"] = elapsed - writes
     if args.pdf_models:
         receipt["migration"] = (
             "live remote PDF fetch, extraction, chunking, embedding and indexing; application cutover"

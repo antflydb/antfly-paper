@@ -6,7 +6,7 @@ import hashlib
 import json
 import time
 from collections import Counter
-from contextlib import closing
+from contextlib import ExitStack, closing
 from pathlib import Path
 
 import dataset
@@ -52,9 +52,105 @@ def bind_ocr_schedule(out, spec, pdfs, legacy_pdfs):
     return scheduled
 
 
-def prepare(args):
+def catalog_extract(page, number, catalog, sha, counts):
+    from common import pdf_text_layer
+
+    text, needs_reader = pdf_text_layer(page)
+    if not needs_reader:
+        return {"page": number, "body": text, "extraction": "native"}
+    body = publisher_replay.page_text(catalog, sha, number)
+    counts["publisher_catalog_lookups"] += 1
+    return {
+        "page": number,
+        "body": (body or "").strip(),
+        "extraction": "publisher_missing" if body is None else "publisher",
+    }
+
+
+def bind_replay(out, spec):
+    marker = out / "identity.json"
+    if marker.exists():
+        old = json.loads(marker.read_text())
+        # Older preparation receipts replayed the same catalog through HTTP.
+        if old.get("replay_transport") == "source-page-png-v1":
+            old.pop("replay_transport")
+        if old != spec:
+            raise ValueError("checkpoint identity changed")
+    elif any((out / "receipts").glob("*.json")):
+        raise ValueError("checkpoint identity missing")
+    publish(marker, spec)
+
+
+def document_key(pdf):
+    return hashlib.sha256(Path(pdf["path"]).name.encode()).hexdigest()
+
+
+def assist_has_room(primary, pdfs, index):
+    # The primary advances in ascending order. Keep two incomplete PDFs between
+    # its current document and the helper, including while publishing a receipt.
+    missing = 0
+    for j in range(index - 1, -1, -1):
+        if not (primary / "receipts" / (document_key(pdfs[j]) + ".json")).exists():
+            missing += 1
+            if missing == 3:
+                return True
+    return False
+
+
+def assist_order(primary, pdfs):
+    leases = primary / ".assist-staging" / "leases"
+    leases.mkdir(parents=True, exist_ok=True)
+    for index in reversed(range(len(pdfs))):
+        key = document_key(pdfs[index])
+        receipt = primary / "receipts" / (key + ".json")
+        if receipt.exists():
+            continue
+        if not assist_has_room(primary, pdfs, index):
+            break
+        with (leases / key).open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                continue
+            if not receipt.exists():
+                yield index
+
+
+def import_assisted_pdf(primary, files, receipt):
+    # Both directories are on the same volume. Each rename publishes a complete
+    # shard. The primary recognizes a PDF only after the receipt appears.
+    target_receipt = primary / "receipts" / receipt.name
+    if target_receipt.exists():
+        return
+    record = json.loads(receipt.read_text())
+    for gen, source in files.items():
+        dest = primary / gen / "documents" / source.name
+        if dest.exists():
+            if sha(dest) != record["sha256"][gen]:
+                raise ValueError("conflicting assisted shard")
+        elif sha(source) == record["sha256"][gen]:
+            source.rename(dest)
+        else:
+            raise ValueError("assisted shard checksum differs")
+    receipt.rename(target_receipt)
+
+
+def prepare(args, cache=None):
     import pypdfium2 as pdfium
 
+    primary = args.assist_inputs
+    if primary and (
+        not args.replay_catalog
+        or not cache
+        or args.native_plan
+        or args.application_reader
+    ):
+        raise ValueError("assistance requires cached offline publisher preparation")
+    if primary and (
+        primary.resolve() == args.out.resolve()
+        or primary.stat().st_dev != args.out.stat().st_dev
+    ):
+        raise ValueError("use a separate staging directory on the primary volume")
     metadata = json.loads((args.workload / "documents.json").read_text())
     expected = json.loads((args.workload / "provenance.json").read_text())
     acquisition = args.data / "dataset-manifest.json"
@@ -94,9 +190,25 @@ def prepare(args):
     texts = list(dict.fromkeys(q["question"] for q in prompts))
     encoded = {}
     identity = None
-    for start in range(0, len(texts), 16):
-        batch = texts[start : start + 16]
-        vectors, identity = embed_batch(args.models, batch, "RETRIEVAL_QUERY", identity)
+    query_path = args.out / "queries.json"
+    reuse_queries = (
+        cache and query_path.exists() and (args.out / "identity.json").is_file()
+    )
+    # Probe the loaded model before consulting the cross-revision cache.
+    if cache:
+        first, identity = embed_batch(args.models, texts[:1], "RETRIEVAL_QUERY")
+        encoded[texts[0]] = first[0]
+        with cache.db:
+            cache.seed_vector(identity, "RETRIEVAL_QUERY", texts[0], first[0])
+        cache.counts["model_identity_probes"] += 1
+    remaining = texts[1:] if cache else texts
+    embed = cache.embed if cache else embed_batch
+    encode = cache.passages if cache else pdf_pipeline.passage_vectors
+    if reuse_queries or primary:
+        remaining = []
+    for start in range(0, len(remaining), 16):
+        batch = remaining[start : start + 16]
+        vectors, identity = embed(args.models, batch, "RETRIEVAL_QUERY", identity)
         encoded.update(zip(batch, vectors, strict=True))
     spec = {
         "representations": "pdf-images-to-passages-v2",
@@ -130,10 +242,6 @@ def prepare(args):
         ):
             raise ValueError("publisher catalog is incomplete or mismatched")
         spec["reader"] = publisher_replay.MODEL
-        if not args.native_plan:
-            if not args.application_reader:
-                raise ValueError("publisher replay requires the application reader URL")
-            spec["replay_transport"] = "source-page-png-v1"
     if args.refs:
         refs = json.loads(args.refs.read_text())
         if not set(metadata) <= refs.keys():
@@ -143,17 +251,18 @@ def prepare(args):
     if replay:
         if args.legacy_ocr_pdfs:
             raise ValueError("OCR retry schedules do not apply to publisher replay")
-        marker = args.out / "identity.json"
-        if marker.exists() and json.loads(marker.read_text()) != spec:
-            raise ValueError("checkpoint identity changed")
-        if not marker.exists() and any((args.out / "receipts").glob("*.json")):
-            raise ValueError("checkpoint identity missing")
-        publish(marker, spec)
+        bind_replay(args.out, spec)
     else:
         spec = bind_ocr_schedule(args.out, spec, pdfs, args.legacy_ocr_pdfs)
-    for q in prompts:
-        q.update(a=encoded[q["question"]], b=encoded[q["question"]])
-    publish(args.out / "queries.json", prompts)
+    if primary:
+        if json.loads((primary / "identity.json").read_text()) != spec:
+            raise ValueError("helper differs from frozen primary identity")
+    elif reuse_queries:
+        cache.seed_queries(query_path, prompts, identity)
+    else:
+        for q in prompts:
+            q.update(a=encoded[q["question"]], b=encoded[q["question"]])
+        publish(query_path, prompts)
     if args.native_plan:
         plan = spec | {
             "native_source_plan": True,
@@ -168,19 +277,26 @@ def prepare(args):
         }
         publish(args.out / "native-plan.json", plan)
         return
+    shards = primary / ".assist-staging" if primary else args.out
     for g in ("a", "b"):
-        (args.out / g / "documents").mkdir(parents=True, exist_ok=True)
-    receipts = args.out / "receipts"
+        (shards / g / "documents").mkdir(parents=True, exist_ok=True)
+    receipts = shards / "receipts"
     receipts.mkdir(exist_ok=True)
     totals = Counter()
-    for i, r in enumerate(pdfs, 1):
+    order = assist_order(primary, pdfs) if primary else range(len(pdfs))
+    for index_in_inventory in order:
+        i = index_in_inventory + 1
+        r = pdfs[index_in_inventory]
         limits = (
             () if replay else (4096, 8192) if i <= spec["legacy_ocr_pdfs"] else (8192,)
         )
         name = Path(r["path"]).name
-        key = hashlib.sha256(name.encode()).hexdigest()
-        files = {g: args.out / g / "documents" / (key + ".jsonl") for g in ("a", "b")}
+        key = document_key(r)
+        files = {g: shards / g / "documents" / (key + ".jsonl") for g in ("a", "b")}
         rec = receipts / (key + ".json")
+        if primary and rec.exists():
+            import_assisted_pdf(primary, files, rec)
+            continue
         if rec.exists():
             saved = json.loads(rec.read_text())
             if tuple(saved.get("ocr_token_limits", (4096, 8192))) != limits:
@@ -189,6 +305,8 @@ def prepare(args):
                 file.exists() and sha(file) == saved["sha256"][g]
                 for g, file in files.items()
             ):
+                if cache:
+                    cache.seed_passages(files["b"], saved["sha256"]["b"], identity)
                 totals.update(saved["counts"])
                 continue
         source = args.data / r["path"]
@@ -197,6 +315,7 @@ def prepare(args):
         ):
             raise ValueError("changed PDF " + key)
         counts = Counter()
+        cache_before = cache.counts.copy() if cache else None
         truncated = []
         started = time.monotonic()
         if args.refs:
@@ -216,7 +335,9 @@ def prepare(args):
                 with closing(pdf[index]) as page:
                     pid = page_id(name, index + 1)
                     row = {"id": pid, "page": pid, "views": metadata[name]}
-                    vector = pdf_pipeline.visual(page, args.models, identity, counts)
+                    vector = pdf_pipeline.visual(
+                        page, args.models, identity, counts, embed=embed
+                    )
                     a.write(
                         json.dumps(
                             row | {"body": "", "a": vector}, separators=(",", ":")
@@ -224,23 +345,32 @@ def prepare(args):
                         + "\n"
                     )
                     counts["pages"] += 1
-                    output = pdf_pipeline.extract(
-                        page,
-                        index + 1,
-                        args.models,
-                        limits,
-                        replay,
-                        r["local_sha256"],
-                        counts,
-                        args.application_reader,
-                    )
+                    if replay and not args.application_reader:
+                        output = catalog_extract(
+                            page, index + 1, replay, r["local_sha256"], counts
+                        )
+                    else:
+                        output = pdf_pipeline.extract(
+                            page,
+                            index + 1,
+                            args.models,
+                            limits,
+                            replay,
+                            r["local_sha256"],
+                            counts,
+                            args.application_reader,
+                        )
                     counts[output["extraction"] + "_pages"] += 1
                     if output["extraction"] == "ocr_truncated":
                         truncated.append(index + 1)
                     if not output["body"].strip():
                         counts["empty_text_pages"] += 1
                     for passage in pdf_pipeline.passages(
-                        row, output["body"], args.models, identity
+                        row,
+                        output["body"],
+                        args.models,
+                        identity,
+                        encode=encode,
                     ):
                         b.write(json.dumps(passage, separators=(",", ":")) + "\n")
                         counts["chunks"] += 1
@@ -256,12 +386,28 @@ def prepare(args):
             "seconds": time.monotonic() - started,
             "sha256": {g: sha(path) for g, path in files.items()},
         }
+        if replay:
+            record["preparation_reader_transport"] = (
+                "source-page-png-v1"
+                if args.application_reader
+                else "catalog-by-page-v1"
+            )
+        if cache:
+            record["preparation_cache"] = dict(cache.counts - cache_before)
+        if primary:
+            record["preparation_worker"] = args.assist_name
         publish(rec, record)
+        if primary:
+            if not assist_has_room(primary, pdfs, index_in_inventory):
+                break
+            import_assisted_pdf(primary, files, rec)
         totals.update(counts)
         print(
-            f"committed {i}/{len(pdfs)} PDFs, {totals['pages']} pages, {totals['chunks']} chunks",
+            f"committed {totals['documents']}/{len(pdfs)} PDFs, {totals['pages']} pages, {totals['chunks']} chunks",
             flush=True,
         )
+    if primary:
+        return
     if (
         totals["pages"] != sum(r["physical_pages"] for r in pdfs)
         or totals["documents"] != len(pdfs)
@@ -272,7 +418,9 @@ def prepare(args):
     for path in receipts.glob("*.json"):
         doc = json.loads(path.read_text())
         limits = doc.get("ocr_token_limits", [4096, 8192])
-        key = ",".join(map(str, limits)) or "publisher replay"
+        key = ",".join(map(str, limits)) or doc.get(
+            "preparation_reader_transport", "source-page-png-v1"
+        )
         group = timing.setdefault(key, Counter())
         for field in (
             "documents",
@@ -283,6 +431,7 @@ def prepare(args):
             "replay_calls",
             "replay_submitted_pixels",
             "replay_wall_ms",
+            "publisher_catalog_lookups",
         ):
             group[field] += doc["counts"].get(field, 0)
         group["processing_seconds"] += doc["seconds"]
@@ -301,6 +450,19 @@ if __name__ == "__main__":
         type=int,
         help="replay the old 4096 then 8192 policy for this many initial PDFs in frozen order",
     )
+    p.add_argument(
+        "--embedding-cache", type=Path, help="persistent offline preparation cache"
+    )
+    p.add_argument(
+        "--assist-inputs",
+        type=Path,
+        help="assist an ascending publisher preparation from the largest PDFs down",
+    )
+    p.add_argument(
+        "--assist-name",
+        default="assistant",
+        help="worker label in preparation receipts",
+    )
     p.add_argument("--application-reader")
     p.add_argument("--refs", type=Path)
     p.add_argument(
@@ -313,6 +475,16 @@ if __name__ == "__main__":
     p.add_argument("--subject", required=True, help="runtime binary SHA-256")
     args = p.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    with (args.out / ".lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        prepare(args)
+    with ExitStack() as locks:
+        own_lock = locks.enter_context((args.out / ".lock").open("a"))
+        fcntl.flock(own_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if args.assist_inputs:
+            # Queue behind a legacy single helper before joining the shared protocol.
+            group = locks.enter_context((args.assist_inputs / ".assist.lock").open("a"))
+            fcntl.flock(group, fcntl.LOCK_SH)
+        from preparation_cache import open_cache
+
+        with open_cache(args.embedding_cache, args.subject) as cache:
+            prepare(args, cache)
+            if cache:
+                publish(args.out / "last-cache-run.json", dict(cache.counts))

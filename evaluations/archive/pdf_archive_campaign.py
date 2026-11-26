@@ -423,7 +423,11 @@ def main():
                 f.stem for f in (args.inputs / g / "documents").glob("*.jsonl")
             } != expected_shards:
                 raise ValueError("unexpected vector shard inventory")
-        identity = {"prepared_sha256": fingerprint.hexdigest(), "probe": args.probe}
+        identity = {
+            "prepared_sha256": fingerprint.hexdigest(),
+            "probe": args.probe,
+            "traffic_protocol": "scheduled-a-reads-v2",
+        }
         if args.pdf_models:
             identity["timing"] = "live-pdf-pipeline-v1"
         cohort = args.out / "cohort.json"
