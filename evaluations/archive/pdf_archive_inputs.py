@@ -387,7 +387,7 @@ def prepare(args, cache=None):
             import_assisted_pdf(primary, files, rec)
         totals.update(counts)
         print(
-            f"committed {i}/{len(pdfs)} PDFs, {totals['pages']} pages, {totals['chunks']} chunks",
+            f"committed {totals['documents']}/{len(pdfs)} PDFs, {totals['pages']} pages, {totals['chunks']} chunks",
             flush=True,
         )
     if primary:
