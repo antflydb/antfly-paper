@@ -6,7 +6,7 @@ import hashlib
 import json
 import time
 from collections import Counter
-from contextlib import closing
+from contextlib import ExitStack, closing
 from pathlib import Path
 
 import dataset
@@ -81,9 +81,56 @@ def bind_replay(out, spec):
     publish(marker, spec)
 
 
+def document_key(pdf):
+    return hashlib.sha256(Path(pdf["path"]).name.encode()).hexdigest()
+
+
+def assist_has_room(primary, pdfs, index):
+    # The primary advances in ascending order. Keep two incomplete PDFs between
+    # its current document and the helper, including while publishing a receipt.
+    if index < 3:
+        return False
+    return all(
+        not (primary / "receipts" / (document_key(pdfs[j]) + ".json")).exists()
+        for j in range(index - 3, index)
+    )
+
+
+def import_assisted_pdf(primary, files, receipt):
+    # Both directories are on the same volume. Each rename publishes a complete
+    # shard. The primary recognizes a PDF only after the receipt appears.
+    target_receipt = primary / "receipts" / receipt.name
+    if target_receipt.exists():
+        return
+    record = json.loads(receipt.read_text())
+    for gen, source in files.items():
+        dest = primary / gen / "documents" / source.name
+        if dest.exists():
+            if sha(dest) != record["sha256"][gen]:
+                raise ValueError("conflicting assisted shard")
+        elif sha(source) == record["sha256"][gen]:
+            source.rename(dest)
+        else:
+            raise ValueError("assisted shard checksum differs")
+    receipt.rename(target_receipt)
+
+
 def prepare(args, cache=None):
     import pypdfium2 as pdfium
 
+    primary = args.assist_inputs
+    if primary and (
+        not args.replay_catalog
+        or not cache
+        or args.native_plan
+        or args.application_reader
+    ):
+        raise ValueError("assistance requires cached offline publisher preparation")
+    if primary and (
+        primary.resolve() == args.out.resolve()
+        or primary.stat().st_dev != args.out.stat().st_dev
+    ):
+        raise ValueError("use a separate staging directory on the primary volume")
     metadata = json.loads((args.workload / "documents.json").read_text())
     expected = json.loads((args.workload / "provenance.json").read_text())
     acquisition = args.data / "dataset-manifest.json"
@@ -137,7 +184,7 @@ def prepare(args, cache=None):
     remaining = texts[1:] if cache else texts
     embed = cache.embed if cache else embed_batch
     encode = cache.passages if cache else pdf_pipeline.passage_vectors
-    if reuse_queries:
+    if reuse_queries or primary:
         remaining = []
     for start in range(0, len(remaining), 16):
         batch = remaining[start : start + 16]
@@ -187,7 +234,10 @@ def prepare(args, cache=None):
         bind_replay(args.out, spec)
     else:
         spec = bind_ocr_schedule(args.out, spec, pdfs, args.legacy_ocr_pdfs)
-    if reuse_queries:
+    if primary:
+        if json.loads((primary / "identity.json").read_text()) != spec:
+            raise ValueError("helper differs from frozen primary identity")
+    elif reuse_queries:
         cache.seed_queries(query_path, prompts, identity)
     else:
         for q in prompts:
@@ -212,14 +262,25 @@ def prepare(args, cache=None):
     receipts = args.out / "receipts"
     receipts.mkdir(exist_ok=True)
     totals = Counter()
-    for i, r in enumerate(pdfs, 1):
+    order = reversed(range(len(pdfs))) if primary else range(len(pdfs))
+    for index_in_inventory in order:
+        i = index_in_inventory + 1
+        r = pdfs[index_in_inventory]
         limits = (
             () if replay else (4096, 8192) if i <= spec["legacy_ocr_pdfs"] else (8192,)
         )
         name = Path(r["path"]).name
-        key = hashlib.sha256(name.encode()).hexdigest()
+        key = document_key(r)
+        if primary:
+            if (primary / "receipts" / (key + ".json")).exists():
+                continue
+            if not assist_has_room(primary, pdfs, index_in_inventory):
+                break
         files = {g: args.out / g / "documents" / (key + ".jsonl") for g in ("a", "b")}
         rec = receipts / (key + ".json")
+        if primary and rec.exists():
+            import_assisted_pdf(primary, files, rec)
+            continue
         if rec.exists():
             saved = json.loads(rec.read_text())
             if tuple(saved.get("ocr_token_limits", (4096, 8192))) != limits:
@@ -317,12 +378,20 @@ def prepare(args, cache=None):
             )
         if cache:
             record["preparation_cache"] = dict(cache.counts - cache_before)
+        if primary:
+            record["preparation_worker"] = "assistant"
         publish(rec, record)
+        if primary:
+            if not assist_has_room(primary, pdfs, index_in_inventory):
+                break
+            import_assisted_pdf(primary, files, rec)
         totals.update(counts)
         print(
             f"committed {i}/{len(pdfs)} PDFs, {totals['pages']} pages, {totals['chunks']} chunks",
             flush=True,
         )
+    if primary:
+        return
     if (
         totals["pages"] != sum(r["physical_pages"] for r in pdfs)
         or totals["documents"] != len(pdfs)
@@ -368,6 +437,11 @@ if __name__ == "__main__":
     p.add_argument(
         "--embedding-cache", type=Path, help="persistent offline preparation cache"
     )
+    p.add_argument(
+        "--assist-inputs",
+        type=Path,
+        help="assist an ascending publisher preparation from the largest PDFs down",
+    )
     p.add_argument("--application-reader")
     p.add_argument("--refs", type=Path)
     p.add_argument(
@@ -380,8 +454,13 @@ if __name__ == "__main__":
     p.add_argument("--subject", required=True, help="runtime binary SHA-256")
     args = p.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    with (args.out / ".lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with ExitStack() as locks:
+        lock_dirs = [(args.out, ".lock")]
+        if args.assist_inputs:
+            lock_dirs.append((args.assist_inputs, ".assist.lock"))
+        for directory, name in lock_dirs:
+            lock = locks.enter_context((directory / name).open("a"))
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         from preparation_cache import open_cache
 
         with open_cache(args.embedding_cache, args.subject) as cache:

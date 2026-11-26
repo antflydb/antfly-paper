@@ -17,6 +17,48 @@ from pdf_archive_inputs import bind_ocr_schedule
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_helper_stops_before_primary_and_resumes_partial_import(self):
+        from pdf_archive_inputs import (
+            assist_has_room,
+            document_key,
+            import_assisted_pdf,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            primary = Path(directory) / "primary"
+            receipts = primary / "receipts"
+            receipts.mkdir(parents=True)
+            pdfs = [{"path": f"fixture-{i}.pdf"} for i in range(5)]
+            self.assertTrue(assist_has_room(primary, pdfs, 4))
+            (receipts / (document_key(pdfs[1]) + ".json")).touch()
+            self.assertFalse(assist_has_room(primary, pdfs, 4))
+
+            staged = Path(directory) / "staged"
+            staged.mkdir()
+            files = {}
+            hashes = {}
+            for gen in ("a", "b"):
+                dest = primary / gen / "documents"
+                dest.mkdir(parents=True)
+                path = staged / f"{gen}.jsonl"
+                path.write_bytes(gen.encode())
+                files[gen] = path
+                hashes[gen] = hashlib.sha256(gen.encode()).hexdigest()
+            receipt = staged / "fixture.json"
+            receipt.write_text(json.dumps({"sha256": hashes}))
+            # Recover a prior interruption after moving only the first shard.
+            files["a"].rename(primary / "a/documents/a.jsonl")
+            files["b"].write_bytes(b"damaged")
+            with self.assertRaisesRegex(ValueError, "checksum"):
+                import_assisted_pdf(primary, files, receipt)
+            self.assertFalse((receipts / receipt.name).exists())
+            files["b"].write_bytes(b"b")
+            import_assisted_pdf(primary, files, receipt)
+            self.assertEqual(
+                json.loads((receipts / receipt.name).read_text())["sha256"], hashes
+            )
+            import_assisted_pdf(primary, files, receipt)
+
     def test_pdf_protocol_versions_and_frozen_corpus(self):
         from evidence import is_pdf_migration
 
