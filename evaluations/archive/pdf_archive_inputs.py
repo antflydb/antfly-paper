@@ -88,12 +88,32 @@ def document_key(pdf):
 def assist_has_room(primary, pdfs, index):
     # The primary advances in ascending order. Keep two incomplete PDFs between
     # its current document and the helper, including while publishing a receipt.
-    if index < 3:
-        return False
-    return all(
-        not (primary / "receipts" / (document_key(pdfs[j]) + ".json")).exists()
-        for j in range(index - 3, index)
-    )
+    missing = 0
+    for j in range(index - 1, -1, -1):
+        if not (primary / "receipts" / (document_key(pdfs[j]) + ".json")).exists():
+            missing += 1
+            if missing == 3:
+                return True
+    return False
+
+
+def assist_order(primary, pdfs):
+    leases = primary / ".assist-staging" / "leases"
+    leases.mkdir(parents=True, exist_ok=True)
+    for index in reversed(range(len(pdfs))):
+        key = document_key(pdfs[index])
+        receipt = primary / "receipts" / (key + ".json")
+        if receipt.exists():
+            continue
+        if not assist_has_room(primary, pdfs, index):
+            break
+        with (leases / key).open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                continue
+            if not receipt.exists():
+                yield index
 
 
 def import_assisted_pdf(primary, files, receipt):
@@ -257,12 +277,13 @@ def prepare(args, cache=None):
         }
         publish(args.out / "native-plan.json", plan)
         return
+    shards = primary / ".assist-staging" if primary else args.out
     for g in ("a", "b"):
-        (args.out / g / "documents").mkdir(parents=True, exist_ok=True)
-    receipts = args.out / "receipts"
+        (shards / g / "documents").mkdir(parents=True, exist_ok=True)
+    receipts = shards / "receipts"
     receipts.mkdir(exist_ok=True)
     totals = Counter()
-    order = reversed(range(len(pdfs))) if primary else range(len(pdfs))
+    order = assist_order(primary, pdfs) if primary else range(len(pdfs))
     for index_in_inventory in order:
         i = index_in_inventory + 1
         r = pdfs[index_in_inventory]
@@ -271,12 +292,7 @@ def prepare(args, cache=None):
         )
         name = Path(r["path"]).name
         key = document_key(r)
-        if primary:
-            if (primary / "receipts" / (key + ".json")).exists():
-                continue
-            if not assist_has_room(primary, pdfs, index_in_inventory):
-                break
-        files = {g: args.out / g / "documents" / (key + ".jsonl") for g in ("a", "b")}
+        files = {g: shards / g / "documents" / (key + ".jsonl") for g in ("a", "b")}
         rec = receipts / (key + ".json")
         if primary and rec.exists():
             import_assisted_pdf(primary, files, rec)
@@ -379,7 +395,7 @@ def prepare(args, cache=None):
         if cache:
             record["preparation_cache"] = dict(cache.counts - cache_before)
         if primary:
-            record["preparation_worker"] = "assistant"
+            record["preparation_worker"] = args.assist_name
         publish(rec, record)
         if primary:
             if not assist_has_room(primary, pdfs, index_in_inventory):
@@ -442,6 +458,11 @@ if __name__ == "__main__":
         type=Path,
         help="assist an ascending publisher preparation from the largest PDFs down",
     )
+    p.add_argument(
+        "--assist-name",
+        default="assistant",
+        help="worker label in preparation receipts",
+    )
     p.add_argument("--application-reader")
     p.add_argument("--refs", type=Path)
     p.add_argument(
@@ -455,12 +476,12 @@ if __name__ == "__main__":
     args = p.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     with ExitStack() as locks:
-        lock_dirs = [(args.out, ".lock")]
+        own_lock = locks.enter_context((args.out / ".lock").open("a"))
+        fcntl.flock(own_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.assist_inputs:
-            lock_dirs.append((args.assist_inputs, ".assist.lock"))
-        for directory, name in lock_dirs:
-            lock = locks.enter_context((directory / name).open("a"))
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Queue behind a legacy single helper before joining the shared protocol.
+            group = locks.enter_context((args.assist_inputs / ".assist.lock").open("a"))
+            fcntl.flock(group, fcntl.LOCK_SH)
         from preparation_cache import open_cache
 
         with open_cache(args.embedding_cache, args.subject) as cache:

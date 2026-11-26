@@ -31,6 +31,8 @@ class ArchiveTests(unittest.TestCase):
             pdfs = [{"path": f"fixture-{i}.pdf"} for i in range(5)]
             self.assertTrue(assist_has_room(primary, pdfs, 4))
             (receipts / (document_key(pdfs[1]) + ".json")).touch()
+            self.assertTrue(assist_has_room(primary, pdfs, 4))
+            (receipts / (document_key(pdfs[0]) + ".json")).touch()
             self.assertFalse(assist_has_room(primary, pdfs, 4))
 
             staged = Path(directory) / "staged"
@@ -58,6 +60,22 @@ class ArchiveTests(unittest.TestCase):
                 json.loads((receipts / receipt.name).read_text())["sha256"], hashes
             )
             import_assisted_pdf(primary, files, receipt)
+
+    def test_two_helpers_hold_distinct_leases_and_reclaim_after_exit(self):
+        from contextlib import closing
+
+        from pdf_archive_inputs import assist_order
+
+        with tempfile.TemporaryDirectory() as directory:
+            primary = Path(directory)
+            (primary / "receipts").mkdir()
+            pdfs = [{"path": str(i)} for i in range(6)]
+            with closing(assist_order(primary, pdfs)) as first:
+                self.assertEqual(next(first), 5)
+                with closing(assist_order(primary, pdfs)) as second:
+                    self.assertEqual(next(second), 4)
+            with closing(assist_order(primary, pdfs)) as resumed:
+                self.assertEqual(next(resumed), 5)
 
     def test_pdf_protocol_versions_and_frozen_corpus(self):
         from evidence import is_pdf_migration
